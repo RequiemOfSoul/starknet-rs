@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Receipt {
     #[serde(default)]
@@ -31,7 +31,7 @@ pub struct Receipt {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct ConfirmedReceipt {
     #[serde_as(as = "UfeHex")]
@@ -67,7 +67,7 @@ pub enum TransactionStatus {
     AcceptedOnL1,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct ExecutionResources {
     pub n_steps: u64,
@@ -75,7 +75,7 @@ pub struct ExecutionResources {
     pub builtin_instance_counter: BuiltinInstanceCounter,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct BuiltinInstanceCounter {
     pub pedersen_builtin: Option<u64>,
@@ -87,7 +87,7 @@ pub struct BuiltinInstanceCounter {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct L1ToL2Message {
     pub from_address: L1Address,
@@ -102,7 +102,7 @@ pub struct L1ToL2Message {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct L2ToL1Message {
     #[serde_as(as = "UfeHex")]
@@ -113,7 +113,7 @@ pub struct L2ToL1Message {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct Event {
     #[serde_as(as = "UfeHex")]
