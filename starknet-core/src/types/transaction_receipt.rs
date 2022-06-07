@@ -48,7 +48,7 @@ pub struct ConfirmedReceipt {
     pub actual_fee: Option<FieldElement>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum TransactionStatus {

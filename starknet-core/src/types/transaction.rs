@@ -9,7 +9,7 @@ use super::{
 use serde::Deserialize;
 use serde_with::serde_as;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum TransactionType {
@@ -18,7 +18,7 @@ pub enum TransactionType {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionStatusInfo {
     #[serde(default)]
@@ -29,7 +29,7 @@ pub struct TransactionStatusInfo {
     #[serde(alias = "tx_failure_reason")]
     pub transaction_failure_reason: Option<TransactionFailureReason>,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionFailureReason {
     pub code: String,
@@ -37,7 +37,7 @@ pub struct TransactionFailureReason {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionInfo {
     #[serde(default)]
@@ -51,7 +51,7 @@ pub struct TransactionInfo {
     pub transaction_index: Option<u64>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum EntryPointType {
@@ -61,7 +61,7 @@ pub enum EntryPointType {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct DeployTransaction {
     #[serde_as(deserialize_as = "Vec<UfeHex>")]
@@ -79,7 +79,7 @@ pub struct DeployTransaction {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct InvokeFunctionTransaction {
     #[serde_as(as = "UfeHex")]
