@@ -10,6 +10,7 @@ pub struct AttachedAccountCall<'a, A> {
     pub nonce: Option<FieldElement>,
     pub max_fee: Option<FieldElement>,
     pub(crate) account: &'a A,
+    pub transaction_hash: FieldElement,
 }
 
 pub trait AccountCall {
@@ -28,7 +29,7 @@ pub trait AccountCall {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Account: Sized {
     type GetNonceError: Error + Send;
-    type EstimateFeeError: Error + Send;
+    type SignTransactionError: Error + Send;
     type SendTransactionError: Error + Send;
 
     async fn get_nonce(
@@ -36,9 +37,9 @@ pub trait Account: Sized {
         block_identifier: BlockId,
     ) -> Result<FieldElement, Self::GetNonceError>;
 
-    fn execute(&self, calls: &[Call]) -> AttachedAccountCall<Self>;
+    async fn execute(&self, calls: &[Call]) -> Result<AttachedAccountCall<Self>, Self::SignTransactionError>;
 
-    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::EstimateFeeError>
+    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::SignTransactionError>
     where
         C: AccountCall + Sync;
 
@@ -54,7 +55,7 @@ impl<'a, A> AttachedAccountCall<'a, A>
 where
     A: Account + Sync,
 {
-    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::EstimateFeeError> {
+    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::SignTransactionError> {
         self.account.estimate_fee(self).await
     }
 
@@ -82,6 +83,7 @@ impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
             nonce: Some(nonce),
             max_fee: self.max_fee,
             account: self.account,
+            transaction_hash: self.transaction_hash
         }
     }
 
@@ -91,6 +93,7 @@ impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
             nonce: self.nonce,
             max_fee: Some(max_fee),
             account: self.account,
+            transaction_hash: self.transaction_hash
         }
     }
 }
