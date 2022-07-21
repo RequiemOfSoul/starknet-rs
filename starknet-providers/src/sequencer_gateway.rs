@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use crate::provider::Provider;
 
 use async_trait::async_trait;
@@ -22,6 +23,15 @@ pub struct SequencerGatewayProvider {
     client: Client,
     gateway_url: Url,
     feeder_gateway_url: Url,
+}
+
+impl std::fmt::Debug for SequencerGatewayProvider {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SequencerGatewayProvider")
+                  .field("gateway_url", &self.gateway_url)
+                  .field("feeder_gateway_url", &self.feeder_gateway_url)
+                  .finish()
+    }
 }
 
 #[derive(Debug, Error)]

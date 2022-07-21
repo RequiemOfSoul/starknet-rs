@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use starknet_core::types::{AddTransactionResult, BlockId, FeeEstimate, FieldElement};
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AttachedAccountCall<'a, A> {
     pub calls: Vec<Call>,
     pub nonce: Option<FieldElement>,
