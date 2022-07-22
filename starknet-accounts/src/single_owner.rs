@@ -1,5 +1,5 @@
 use crate::{
-    account::{AccountCall, AttachedAccountCall},
+    account::{AccountCall, AttachedTxInfoCall},
     Account, Call,
 };
 
@@ -190,7 +190,7 @@ where
         }
     }
 
-    async fn execute(&self, calls: &[Call]) ->  Result<AttachedAccountCall<Self>, TransactionError<P::Error, S::SignError>> {
+    async fn execute(&self, calls: &[Call]) ->  Result<AttachedTxInfoCall, TransactionError<P::Error, S::SignError>> {
         let nonce = self.get_nonce(BlockId::Latest).await.map_err(|e| TransactionError::GetNonceError(e))?;
         let max_fee = {
             let fee_estimate = self
@@ -227,11 +227,10 @@ where
             max_fee,
             self.chain_id,
         ]);
-        Ok(AttachedAccountCall::<Self> {
+        Ok(AttachedTxInfoCall {
             calls: calls.to_vec(),
             nonce: Some(nonce),
             max_fee: Some(max_fee),
-            account: self,
             transaction_hash
         })
     }

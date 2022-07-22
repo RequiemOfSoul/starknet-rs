@@ -5,11 +5,10 @@ use starknet_core::types::{AddTransactionResult, BlockId, FeeEstimate, FieldElem
 use std::error::Error;
 
 #[derive(Debug, Clone)]
-pub struct AttachedAccountCall<'a, A> {
+pub struct AttachedTxInfoCall {
     pub calls: Vec<Call>,
     pub nonce: Option<FieldElement>,
     pub max_fee: Option<FieldElement>,
-    pub(crate) account: &'a A,
     pub transaction_hash: FieldElement,
 }
 
@@ -37,7 +36,7 @@ pub trait Account: Sized {
         block_identifier: BlockId,
     ) -> Result<FieldElement, Self::GetNonceError>;
 
-    async fn execute(&self, calls: &[Call]) -> Result<AttachedAccountCall<Self>, Self::SignTransactionError>;
+    async fn execute(&self, calls: &[Call]) -> Result<AttachedTxInfoCall, Self::SignTransactionError>;
 
     async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::SignTransactionError>
     where
@@ -51,20 +50,7 @@ pub trait Account: Sized {
         C: AccountCall + Sync;
 }
 
-impl<'a, A> AttachedAccountCall<'a, A>
-where
-    A: Account + Sync,
-{
-    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::SignTransactionError> {
-        self.account.estimate_fee(self).await
-    }
-
-    pub async fn send(&self) -> Result<AddTransactionResult, A::SendTransactionError> {
-        self.account.send_transaction(self).await
-    }
-}
-
-impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
+impl AccountCall for AttachedTxInfoCall {
     fn get_calls(&self) -> &[Call] {
         &self.calls
     }
@@ -82,7 +68,6 @@ impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
             calls: self.calls,
             nonce: Some(nonce),
             max_fee: self.max_fee,
-            account: self.account,
             transaction_hash: self.transaction_hash
         }
     }
@@ -92,7 +77,6 @@ impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
             calls: self.calls,
             nonce: self.nonce,
             max_fee: Some(max_fee),
-            account: self.account,
             transaction_hash: self.transaction_hash
         }
     }

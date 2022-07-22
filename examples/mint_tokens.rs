@@ -19,7 +19,7 @@ async fn main() {
 
     let account = SingleOwnerAccount::new(provider, signer, address, chain_id::TESTNET);
 
-    let result = account
+    let call = account
         .execute(&[Call {
             to: tst_token_address,
             selector: get_selector_from_name("mint").unwrap(),
@@ -28,8 +28,8 @@ async fn main() {
                 FieldElement::from_dec_str("1000000000000000000000").unwrap(),
                 FieldElement::ZERO,
             ],
-        }])
-        .send()
+        }]).await.unwrap();
+    let result = account.send_transaction(&call)
         .await
         .unwrap();
 

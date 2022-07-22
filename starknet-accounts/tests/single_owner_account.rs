@@ -49,7 +49,7 @@ async fn can_estimate_fee() {
 
     let account = SingleOwnerAccount::new(provider, signer, address, chain_id::TESTNET);
 
-    let fee_estimate = account
+    let attached_account = account
         .execute(&[
             Call {
                 to: tst_token_address,
@@ -70,7 +70,10 @@ async fn can_estimate_fee() {
                 ],
             },
         ])
-        .estimate_fee()
+        .await
+        .unwrap();
+    let fee_estimate = account
+        .estimate_fee(&attached_account)
         .await
         .unwrap();
 
@@ -104,7 +107,7 @@ async fn can_execute_tst_mint() {
 
     let account = SingleOwnerAccount::new(provider, signer, address, chain_id::TESTNET);
 
-    let result = account
+    let call = account
         .execute(&[
             Call {
                 to: tst_token_address,
@@ -124,8 +127,8 @@ async fn can_execute_tst_mint() {
                     FieldElement::ZERO,
                 ],
             },
-        ])
-        .send()
+        ]).await.unwrap();
+    let result = account.send_transaction(&call)
         .await
         .unwrap();
 
