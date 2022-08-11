@@ -171,7 +171,7 @@ impl FieldElement {
     }
 
     /// For internal use only. The input must be of length [U256_BYTE_COUNT].
-    fn from_byte_slice(bytes: &[u8]) -> Option<Self> {
+    pub fn from_byte_slice(bytes: &[u8]) -> Option<Self> {
         let mut bits = [false; U256_BYTE_COUNT * 8];
         for (ind_byte, byte) in bytes.iter().enumerate() {
             for ind_bit in 0..8 {

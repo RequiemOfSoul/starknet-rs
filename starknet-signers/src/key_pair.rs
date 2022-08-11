@@ -1,15 +1,16 @@
+use serde::{Serialize, Deserialize};
+use starknet_crypto::get_public_key;
 use starknet_core::{
     crypto::{ecdsa_sign, ecdsa_verify, EcdsaSignError, EcdsaVerifyError, Signature},
     types::FieldElement,
 };
-use starknet_crypto::get_public_key;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigningKey {
     secret_scalar: FieldElement,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyingKey {
     scalar: FieldElement,
 }

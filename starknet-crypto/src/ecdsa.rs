@@ -14,7 +14,7 @@ const ELEMENT_UPPER_BOUND: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Stark ECDSA signature
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Signature {
     /// The `r` value of a signature
     pub r: FieldElement,
@@ -30,6 +30,17 @@ impl fmt::Display for Signature {
             hex::encode(self.r.to_bytes_be()),
             hex::encode(self.s.to_bytes_be()),
         )
+    }
+}
+
+impl Signature{
+    pub fn to_bytes_be(&self) -> Vec<u8> {
+        let r = self.r.to_bytes_be();
+        let s = self.s.to_bytes_be();
+        let mut bytes = Vec::with_capacity(r.len() + s.len());
+        bytes.extend(r);
+        bytes.extend(s);
+        bytes
     }
 }
 
