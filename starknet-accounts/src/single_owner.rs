@@ -76,7 +76,7 @@ where
         }
     }
 
-    async fn generate_invoke_request(
+    pub async fn generate_invoke_request(
         &self,
         calls: &[Call],
         nonce: FieldElement,
@@ -120,7 +120,7 @@ where
         })
     }
 
-    async fn get_nonce_for_call<C>(&self, call: &C) -> Result<FieldElement, GetNonceError<P::Error>>
+    pub async fn get_nonce_for_call<C>(&self, call: &C) -> Result<FieldElement, GetNonceError<P::Error>>
     where
         C: AccountCall,
     {
@@ -130,7 +130,7 @@ where
         }
     }
 
-    async fn estimate_fee_for_calls(
+    pub async fn estimate_fee_for_calls(
         &self,
         calls: &[Call],
         nonce: Option<&FieldElement>,
