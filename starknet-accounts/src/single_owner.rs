@@ -16,7 +16,7 @@ use starknet_providers::Provider;
 use starknet_signers::Signer;
 
 /// Cairo string for "invoke"
-const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
+pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
     18443034532770911073,
     18446744073709551615,
     18446744073709551615,
@@ -24,7 +24,7 @@ const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Selector for "__execute__"
-const SELECTOR_EXECUTE: FieldElement = FieldElement::from_mont([
+pub const SELECTOR_EXECUTE: FieldElement = FieldElement::from_mont([
     12003533864240545316,
     425026474450283495,
     15935222606396478900,

@@ -1,10 +1,12 @@
+use std::fmt;
+use serde::{Serialize, Deserialize};
+use starknet_ff::FromByteArrayError;
 use crate::{
     ec_point::EcPoint,
     fe_utils::{add_unbounded, bigint_mul_mod_floor, mod_inverse, mul_mod_floor},
     pedersen_params::{CONSTANT_POINTS, EC_ORDER},
     FieldElement, SignError, VerifyError,
 };
-use std::fmt;
 
 const ELEMENT_UPPER_BOUND: FieldElement = FieldElement::from_mont([
     18446743986131435553,
@@ -14,7 +16,7 @@ const ELEMENT_UPPER_BOUND: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Stark ECDSA signature
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Signature {
     /// The `r` value of a signature
     pub r: FieldElement,
@@ -34,6 +36,12 @@ impl fmt::Display for Signature {
 }
 
 impl Signature{
+    pub fn from_bytes_be(bytes: [u8;64]) -> Result<Self, FromByteArrayError>{
+        let r= FieldElement::from_byte_slice(&bytes[0..32]).ok_or(FromByteArrayError)?;
+        let s= FieldElement::from_byte_slice(&bytes[32..64]).ok_or(FromByteArrayError)?;
+        Ok(Self{r, s})
+    }
+    
     pub fn to_bytes_be(&self) -> Vec<u8> {
         let r = self.r.to_bytes_be();
         let s = self.s.to_bytes_be();
