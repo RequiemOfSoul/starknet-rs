@@ -1,19 +1,20 @@
 use crate::{
-    account::{AccountCall, AttachedTxInfoCall},
-    Account, Call,
+    account::{AccountCall, AttachedTxInfoCall, AttachedAccountDeclaration},
+    Account, AccountDeclaration, Call,
 };
 
 use async_trait::async_trait;
 use starknet_core::{
     crypto::compute_hash_on_elements,
     types::{
-        AddTransactionResult, BlockId, FeeEstimate, FieldElement, InvokeFunctionTransactionRequest,
+        AccountTransaction, AddTransactionResult, BlockId, ContractDefinition,
+        DeclareTransactionRequest, FeeEstimate, FieldElement, InvokeFunctionTransactionRequest,
         TransactionRequest,
     },
-    utils::get_selector_from_name,
 };
 use starknet_providers::Provider;
 use starknet_signers::Signer;
+use std::sync::Arc;
 
 /// Cairo string for "invoke"
 pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
@@ -23,12 +24,12 @@ pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
     513398556346534256,
 ]);
 
-/// Selector for "__execute__"
-pub const SELECTOR_EXECUTE: FieldElement = FieldElement::from_mont([
-    12003533864240545316,
-    425026474450283495,
-    15935222606396478900,
-    305947032915839070,
+/// Cairo string for "declare"
+pub const PREFIX_DECLARE: FieldElement = FieldElement::from_mont([
+    17542456862011667323,
+    18446744073709551615,
+    18446744073709551615,
+    191557713328401194,
 ]);
 
 #[derive(Debug, Clone)]
@@ -37,25 +38,15 @@ where
     P: Provider + Send,
     S: Signer + Send,
 {
-    pub provider: P,
+    provider: P,
     #[allow(unused)]
-    pub signer: S,
-    pub address: FieldElement,
-    pub chain_id: FieldElement,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum GetNonceError<P> {
-    #[error(transparent)]
-    ProviderError(P),
-    #[error("invalid response length. expected {expected} but got {actual}")]
-    InvalidResponseLength { expected: usize, actual: usize },
+    signer: S,
+    address: FieldElement,
+    chain_id: FieldElement,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionError<P, S> {
-    #[error(transparent)]
-    GetNonceError(GetNonceError<P>),
     #[error(transparent)]
     ProviderError(P),
     #[error(transparent)]
@@ -74,6 +65,22 @@ where
             address,
             chain_id,
         }
+    }
+
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
+
+    pub fn signer(&self) -> &S {
+        &self.signer
+    }
+
+    pub fn address(&self) -> FieldElement {
+        self.address
+    }
+
+    pub fn chain_id(&self) -> FieldElement {
+        self.chain_id
     }
 
     pub async fn generate_invoke_request(
@@ -98,36 +105,54 @@ where
         for item in concated_calldata.into_iter() {
             execute_calldata.push(item); // calldata
         }
-        execute_calldata.push(nonce); // nonce
 
         let transaction_hash = compute_hash_on_elements(&[
             PREFIX_INVOKE,
-            FieldElement::ZERO, // version
+            FieldElement::ONE, // version
             self.address,
-            SELECTOR_EXECUTE,
+            FieldElement::ZERO, // entry_point_selector
             compute_hash_on_elements(&execute_calldata),
             max_fee,
             self.chain_id,
+            nonce,
         ]);
         let signature = self.signer.sign_hash(&transaction_hash).await?;
 
         Ok(InvokeFunctionTransactionRequest {
             contract_address: self.address,
-            entry_point_selector: SELECTOR_EXECUTE,
             calldata: execute_calldata,
             signature: vec![signature.r, signature.s],
             max_fee,
+            nonce,
         })
     }
 
-    pub async fn get_nonce_for_call<C>(&self, call: &C) -> Result<FieldElement, GetNonceError<P::Error>>
-    where
-        C: AccountCall,
-    {
-        match call.get_nonce() {
-            Some(value) => Ok(value.to_owned()),
-            None => self.get_nonce(BlockId::Latest).await,
-        }
+    pub async fn generate_declare_request(
+        &self,
+        compressed_class: Arc<ContractDefinition>,
+        class_hash: FieldElement,
+        nonce: FieldElement,
+        max_fee: FieldElement,
+    ) -> Result<DeclareTransactionRequest, S::SignError> {
+        let transaction_hash = compute_hash_on_elements(&[
+            PREFIX_DECLARE,
+            FieldElement::ONE, // version
+            self.address,
+            FieldElement::ZERO, // entry_point_selector
+            compute_hash_on_elements(&[class_hash]),
+            max_fee,
+            self.chain_id,
+            nonce,
+        ]);
+        let signature = self.signer.sign_hash(&transaction_hash).await?;
+
+        Ok(DeclareTransactionRequest {
+            contract_class: compressed_class,
+            sender_address: self.address,
+            max_fee,
+            signature: vec![signature.r, signature.s],
+            nonce,
+        })
     }
 
     pub async fn estimate_fee_for_calls(
@@ -137,14 +162,46 @@ where
     ) -> Result<FeeEstimate, TransactionError<P::Error, S::SignError>> {
         let nonce = match nonce {
             Some(value) => value.to_owned(),
-            None => self.get_nonce(BlockId::Latest).await?,
+            None => self
+                .get_nonce(BlockId::Latest)
+                .await
+                .map_err(TransactionError::ProviderError)?,
         };
         let estimate_fee_request = self
             .generate_invoke_request(calls, nonce, FieldElement::ZERO)
             .await
             .map_err(TransactionError::SignerError)?;
         self.provider
-            .estimate_fee(estimate_fee_request, BlockId::Latest)
+            .estimate_fee(
+                AccountTransaction::InvokeFunction(estimate_fee_request),
+                BlockId::Latest,
+            )
+            .await
+            .map_err(TransactionError::ProviderError)
+    }
+
+    pub async fn estimate_fee_for_declaration(
+        &self,
+        compressed_class: Arc<ContractDefinition>,
+        class_hash: FieldElement,
+        nonce: Option<&FieldElement>,
+    ) -> Result<FeeEstimate, TransactionError<P::Error, S::SignError>> {
+        let nonce = match nonce {
+            Some(value) => value.to_owned(),
+            None => self
+                .get_nonce(BlockId::Latest)
+                .await
+                .map_err(TransactionError::ProviderError)?,
+        };
+        let estimate_fee_request = self
+            .generate_declare_request(compressed_class, class_hash, nonce, FieldElement::ZERO)
+            .await
+            .map_err(TransactionError::SignerError)?;
+        self.provider
+            .estimate_fee(
+                AccountTransaction::Declare(estimate_fee_request),
+                BlockId::Latest,
+            )
             .await
             .map_err(TransactionError::ProviderError)
     }
@@ -157,48 +214,32 @@ where
     P: Provider + Sync + Send,
     S: Signer + Sync + Send,
 {
-    type GetNonceError = GetNonceError<P::Error>;
+    type GetNonceError = P::Error;
     type SignTransactionError = TransactionError<P::Error, S::SignError>;
     type SendTransactionError = TransactionError<P::Error, S::SignError>;
+
+    fn address(&self) -> FieldElement {
+        self.address
+    }
 
     async fn get_nonce(
         &self,
         block_identifier: BlockId,
     ) -> Result<FieldElement, Self::GetNonceError> {
-        let call_result = self
-            .provider
-            .call_contract(
-                InvokeFunctionTransactionRequest {
-                    contract_address: self.address,
-                    entry_point_selector: get_selector_from_name("get_nonce").unwrap(),
-                    calldata: vec![],
-                    signature: vec![],
-                    max_fee: FieldElement::ZERO,
-                },
-                block_identifier,
-            )
+        self.provider
+            .get_nonce(self.address, block_identifier)
             .await
-            .map_err(Self::GetNonceError::ProviderError)?;
-
-        if call_result.result.len() == 1 {
-            Ok(call_result.result[0])
-        } else {
-            Err(GetNonceError::InvalidResponseLength {
-                expected: 1,
-                actual: call_result.result.len(),
-            })
-        }
     }
 
-    async fn execute(&self, calls: &[Call]) ->  Result<AttachedTxInfoCall, TransactionError<P::Error, S::SignError>> {
-        let nonce = self.get_nonce(BlockId::Latest).await.map_err(|e| TransactionError::GetNonceError(e))?;
+    async fn execute(&self, calls: &[Call]) -> Result<AttachedTxInfoCall, TransactionError<P::Error, S::SignError>> {
+        let nonce = self.get_nonce(BlockId::Latest).await.map_err(TransactionError::ProviderError)?;
         let max_fee = {
             let fee_estimate = self
                 .estimate_fee_for_calls(calls, Some(&nonce))
                 .await?;
 
             // Adds 10% fee buffer
-            (fee_estimate.amount * 11 / 10).into()
+            (fee_estimate.gas_usage * 11 / 10).into()
         };
         let mut concated_calldata: Vec<FieldElement> = vec![];
         let mut execute_calldata: Vec<FieldElement> = vec![calls.len().into()];
@@ -222,7 +263,7 @@ where
             PREFIX_INVOKE,
             FieldElement::ZERO, // version
             self.address,
-            SELECTOR_EXECUTE,
+            FieldElement::ZERO,
             compute_hash_on_elements(&execute_calldata),
             max_fee,
             self.chain_id,
@@ -231,8 +272,24 @@ where
             calls: calls.to_vec(),
             nonce: Some(nonce),
             max_fee: Some(max_fee),
+            fee_estimate_multiplier: 1.1,
             transaction_hash
         })
+    }
+
+    fn declare(
+        &self,
+        compressed_class: Arc<ContractDefinition>,
+        class_hash: FieldElement,
+    ) -> AttachedAccountDeclaration<Self> {
+        AttachedAccountDeclaration {
+            compressed_class,
+            class_hash,
+            nonce: None,
+            max_fee: None,
+            fee_estimate_multiplier: 1.1,
+            account: self,
+        }
     }
 
     async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::SignTransactionError>
@@ -243,6 +300,21 @@ where
             .await
     }
 
+    async fn estimate_declare_fee<D>(
+        &self,
+        declaration: &D,
+    ) -> Result<FeeEstimate, Self::SignTransactionError>
+    where
+        D: AccountDeclaration + Sync,
+    {
+        self.estimate_fee_for_declaration(
+            declaration.get_compressed_class(),
+            declaration.get_class_hash(),
+            declaration.get_nonce().as_ref(),
+        )
+        .await
+    }
+
     async fn send_transaction<C>(
         &self,
         call: &C,
@@ -250,7 +322,13 @@ where
     where
         C: AccountCall + Sync,
     {
-        let nonce = self.get_nonce_for_call(call).await?;
+        let nonce = match call.get_nonce() {
+            Some(value) => value.to_owned(),
+            None => self
+                .get_nonce(BlockId::Latest)
+                .await
+                .map_err(Self::SendTransactionError::ProviderError)?,
+        };
         let max_fee = match call.get_max_fee() {
             Some(value) => value.to_owned(),
             None => {
@@ -258,8 +336,9 @@ where
                     .estimate_fee_for_calls(call.get_calls(), Some(&nonce))
                     .await?;
 
-                // Adds 10% fee buffer
-                (fee_estimate.amount * 11 / 10).into()
+                ((fee_estimate.overall_fee as f64 * call.get_fee_estimate_multiplier() as f64)
+                    as u64)
+                    .into()
             }
         };
 
@@ -275,10 +354,50 @@ where
             .await
             .map_err(Self::SendTransactionError::ProviderError)
     }
-}
 
-impl<P, S> From<GetNonceError<P>> for TransactionError<P, S> {
-    fn from(value: GetNonceError<P>) -> Self {
-        Self::GetNonceError(value)
+    async fn send_declare_transaction<D>(
+        &self,
+        declaration: &D,
+    ) -> Result<AddTransactionResult, Self::SendTransactionError>
+    where
+        D: AccountDeclaration + Sync,
+    {
+        let nonce = match declaration.get_nonce() {
+            Some(value) => value.to_owned(),
+            None => self
+                .get_nonce(BlockId::Latest)
+                .await
+                .map_err(Self::SendTransactionError::ProviderError)?,
+        };
+        let max_fee = match declaration.get_max_fee() {
+            Some(value) => value.to_owned(),
+            None => {
+                let fee_estimate = self
+                    .estimate_fee_for_declaration(
+                        declaration.get_compressed_class(),
+                        declaration.get_class_hash(),
+                        Some(&nonce),
+                    )
+                    .await?;
+
+                ((fee_estimate.overall_fee as f64
+                    * declaration.get_fee_estimate_multiplier() as f64) as u64)
+                    .into()
+            }
+        };
+
+        let add_transaction_request = self
+            .generate_declare_request(
+                declaration.get_compressed_class(),
+                declaration.get_class_hash(),
+                nonce,
+                max_fee,
+            )
+            .await
+            .map_err(Self::SendTransactionError::SignerError)?;
+        self.provider
+            .add_transaction(TransactionRequest::Declare(add_transaction_request), None)
+            .await
+            .map_err(Self::SendTransactionError::ProviderError)
     }
 }

@@ -1,4 +1,3 @@
-use std::fmt;
 use serde::{Serialize, Deserialize};
 use starknet_ff::FromByteArrayError;
 use crate::{
@@ -7,6 +6,7 @@ use crate::{
     pedersen_params::{CONSTANT_POINTS, EC_ORDER},
     FieldElement, SignError, VerifyError,
 };
+use std::fmt;
 
 const ELEMENT_UPPER_BOUND: FieldElement = FieldElement::from_mont([
     18446743986131435553,
@@ -58,7 +58,7 @@ impl Signature{
 ///
 /// * `private_key`: The private key
 pub fn get_public_key(private_key: &FieldElement) -> FieldElement {
-    (&CONSTANT_POINTS[1]).multiply(&private_key.to_bits_le()).x
+    CONSTANT_POINTS[1].multiply(&private_key.to_bits_le()).x
 }
 
 /// Computes ECDSA signature given a Stark private key and message hash.

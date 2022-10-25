@@ -19,6 +19,24 @@ curl -o ./get_block/5_with_class_hash_and_actual_fee.txt "https://alpha4.starkne
 # ./get_block/6_with_sequencer_address.txt
 curl -o ./get_block/6_with_sequencer_address.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=183471"
 
+# ./get_block/7_with_declare_tx.txt
+curl -o ./get_block/7_with_declare_tx.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=232491"
+
+# ./get_block/8_with_starknet_version.txt
+curl -o ./get_block/8_with_starknet_version.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=273155"
+
+# ./get_block/9_with_messages_without_nonce.txt
+curl -o ./get_block/9_with_messages_without_nonce.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=1564"
+
+# ./get_block/10_with_l1_handler.txt
+curl -o ./get_block/10_with_l1_handler.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=322735"
+
+# ./get_block/11_without_execution_resources.txt
+curl -o ./get_block/11_without_execution_resources.txt "https://alpha4.starknet.io/feeder_gateway/get_block?blockNumber=324209"
+
+# ./get_block/12_l1_handler_without_nonce.txt
+curl -o ./get_block/12_l1_handler_without_nonce.txt "https://alpha-mainnet.starknet.io/feeder_gateway/get_block?blockNumber=192"
+
 # ./get_code/1_code.txt
 curl -o ./get_code/1_code.txt "https://alpha4.starknet.io/feeder_gateway/get_code?contractAddress=0x05ffd28b3ff2eecd6da0fa64c90e928a9f46f1563976a4fe1770ab48ee43506a"
 
@@ -36,6 +54,9 @@ curl -o ./get_transaction/3_not_received.txt "https://alpha4.starknet.io/feeder_
 
 # ./get_transaction/4_failure.txt
 curl -o ./get_transaction/4_failure.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction?transactionHash=0x533d327336f28b973c7f06f7abf15af7f8fd5a1bd4e1991397ae59e49a59885"
+
+# ./get_transaction/5_declare.txt
+curl -o ./get_transaction/5_declare.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction?transactionHash=0x6943a2586593262662f04bfd45e4a144f18c80353a4129b854443b79197c0cc"
 
 # ./get_transaction_receipt/1_accepted.txt
 curl -o ./get_transaction_receipt/1_accepted.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction_receipt?transactionHash=0x7cb73f737a8ea0c5c94d7799c2d01a47c81f4cb34287408741264d3f09655da"
@@ -64,6 +85,12 @@ curl -o ./get_state_update/1_success.txt "https://alpha4.starknet.io/feeder_gate
 # ./get_state_update/2_pending_block.txt (non-deterministic)
 curl -o ./get_state_update/2_pending_block.txt "https://alpha4.starknet.io/feeder_gateway/get_state_update?blockNumber=pending"
 
+# ./get_state_update/3_with_declarations.txt
+curl -o ./get_state_update/3_with_declarations.txt "https://alpha4.starknet.io/feeder_gateway/get_state_update?blockNumber=267588"
+
+# ./get_state_update/4_with_nonce_changes.txt
+curl -o ./get_state_update/4_with_nonce_changes.txt "https://alpha4.starknet.io/feeder_gateway/get_state_update?blockNumber=326608"
+
 # ./get_full_contract/1_code.txt
 curl -o ./get_full_contract/1_code.txt "https://alpha4.starknet.io/feeder_gateway/get_full_contract?contractAddress=0x05ffd28b3ff2eecd6da0fa64c90e928a9f46f1563976a4fe1770ab48ee43506a"
 
@@ -75,6 +102,12 @@ curl -o ./get_transaction_trace/1_with_messages.txt "https://alpha4.starknet.io/
 
 # ./get_transaction_trace/2_with_events.txt
 curl -o ./get_transaction_trace/2_with_events.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction_trace?transactionHash=0x688e434a1636c30d0c161f766b99b4bfb143208d859149859941905e94cb022"
+
+# ./get_transaction_trace/3_with_call_type.txt
+curl -o ./get_transaction_trace/3_with_call_type.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction_trace?transactionHash=0x4afe0ec31686c150ec8ca315823ae239e7150db43352fb65c9feb423ef23516"
+
+# ./get_transaction_trace/4_with_validation.txt
+curl -o ./get_transaction_trace/4_with_validation.txt "https://alpha4.starknet.io/feeder_gateway/get_transaction_trace?transactionHash=0x0115e5f3388f4aecefc359bce5512e8d5b39e20485ac27c9ed7d92a4b9ce1f1b"
 
 # ./estimate_fee/1_success.txt
 curl -o ./estimate_fee/1_success.txt "https://alpha4.starknet.io/feeder_gateway/estimate_fee" \
@@ -93,3 +126,12 @@ curl -o ./estimate_fee/1_success.txt "https://alpha4.starknet.io/feeder_gateway/
 
 # ./get_storage_at/1_empty.txt
 curl -o ./get_storage_at/1_empty.txt "https://alpha4.starknet.io/feeder_gateway/get_storage_at?contractAddress=0x1&key=2"
+
+# ./get_class_by_hash/1_success.txt
+curl -o ./get_class_by_hash/1_success.txt "https://alpha4.starknet.io/feeder_gateway/get_class_by_hash?classHash=0x051ad5a4a7944af79eb7bb7993f7f801c19ce0faaf855e6a17549b100c698122"
+
+# ./get_class_by_hash/2_not_declared.txt
+curl -o ./get_class_by_hash/2_not_declared.txt "https://alpha4.starknet.io/feeder_gateway/get_class_by_hash?classHash=0x111111111111111111111111"
+
+# ./get_block_traces/1_success.txt
+curl -o ./get_block_traces/1_success.txt "https://alpha4.starknet.io/feeder_gateway/get_block_traces?blockNumber=267588"

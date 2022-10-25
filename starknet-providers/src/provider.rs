@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use starknet_core::types::{
-    AddTransactionResult, Block, BlockId, CallContractResult, ContractAddresses, ContractArtifact,
-    ContractCode, FeeEstimate, FieldElement, InvokeFunctionTransactionRequest, StateUpdate,
-    TransactionInfo, TransactionReceipt, TransactionRequest, TransactionStatusInfo,
-    TransactionTrace,
+    AccountTransaction, AddTransactionResult, Block, BlockId, BlockTraces, CallContractResult,
+    CallFunction, CallL1Handler, ContractAddresses, ContractArtifact, ContractCode, FeeEstimate,
+    FieldElement, StateUpdate, TransactionInfo, TransactionReceipt, TransactionRequest,
+    TransactionSimulationInfo, TransactionStatusInfo, TransactionTrace,
 };
 use std::error::Error;
 
@@ -24,17 +24,32 @@ pub trait Provider {
 
     async fn call_contract(
         &self,
-        invoke_tx: InvokeFunctionTransactionRequest,
+        call_function: CallFunction,
         block_identifier: BlockId,
     ) -> Result<CallContractResult, Self::Error>;
 
     async fn estimate_fee(
         &self,
-        invoke_tx: InvokeFunctionTransactionRequest,
+        tx: AccountTransaction,
         block_identifier: BlockId,
     ) -> Result<FeeEstimate, Self::Error>;
 
+    async fn estimate_message_fee(
+        &self,
+        call_l1_handler: CallL1Handler,
+        block_identifier: BlockId,
+    ) -> Result<FeeEstimate, Self::Error>;
+
+    async fn simulate_transaction(
+        &self,
+        tx: AccountTransaction,
+        block_identifier: BlockId,
+    ) -> Result<TransactionSimulationInfo, Self::Error>;
+
     async fn get_block(&self, block_identifier: BlockId) -> Result<Block, Self::Error>;
+
+    async fn get_block_traces(&self, block_identifier: BlockId)
+        -> Result<BlockTraces, Self::Error>;
 
     async fn get_state_update(&self, block_identifier: BlockId)
         -> Result<StateUpdate, Self::Error>;
@@ -51,10 +66,27 @@ pub trait Provider {
         block_identifier: BlockId,
     ) -> Result<ContractArtifact, Self::Error>;
 
+    async fn get_class_hash_at(
+        &self,
+        contract_address: FieldElement,
+        block_identifier: BlockId,
+    ) -> Result<FieldElement, Self::Error>;
+
+    async fn get_class_by_hash(
+        &self,
+        class_hash: FieldElement,
+    ) -> Result<ContractArtifact, Self::Error>;
+
     async fn get_storage_at(
         &self,
         contract_address: FieldElement,
         key: FieldElement,
+        block_identifier: BlockId,
+    ) -> Result<FieldElement, Self::Error>;
+
+    async fn get_nonce(
+        &self,
+        contract_address: FieldElement,
         block_identifier: BlockId,
     ) -> Result<FieldElement, Self::Error>;
 

@@ -25,6 +25,11 @@ pub struct StateDiff {
     #[serde_as(as = "HashMap<UfeHex, _>")]
     pub storage_diffs: HashMap<FieldElement, Vec<StorageDiff>>,
     pub deployed_contracts: Vec<DeployedContract>,
+    #[serde_as(as = "Vec<UfeHex>")]
+    pub declared_contracts: Vec<FieldElement>,
+    #[serde(default)]
+    #[serde_as(as = "HashMap<UfeHex, UfeHex>")]
+    pub nonces: HashMap<FieldElement, FieldElement>,
 }
 
 #[serde_as]
@@ -44,7 +49,7 @@ pub struct DeployedContract {
     #[serde_as(as = "UfeHex")]
     pub address: FieldElement,
     #[serde_as(as = "UfeHex")]
-    pub contract_hash: FieldElement,
+    pub class_hash: FieldElement,
 }
 
 #[cfg(test)]
@@ -92,11 +97,22 @@ mod tests {
             .unwrap()
         );
         assert_eq!(
-            deployed_contract.contract_hash,
+            deployed_contract.class_hash,
             FieldElement::from_hex_be(
                 "02c3348ad109f7f3967df6494b3c48741d61675d9a7915b265aa7101a631dc33"
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_state_update_deser_with_nonce_changes() {
+        let raw = include_str!(
+            "../../test-data/raw_gateway_responses/get_state_update/4_with_nonce_changes.txt"
+        );
+
+        let state_update: StateUpdate = serde_json::from_str(raw).unwrap();
+        assert_eq!(state_update.state_diff.nonces.len(), 1);
     }
 }

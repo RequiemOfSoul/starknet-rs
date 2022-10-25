@@ -5,7 +5,10 @@ use crate::fr::FrParameters;
 use ark_ff::{fields::Fp256, BigInteger, BigInteger256, Field, PrimeField, SquareRootField};
 use crypto_bigint::{CheckedAdd, CheckedMul, Zero, U256};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display, LowerHex, UpperHex};
+use std::{
+    fmt::{Debug, Display, LowerHex, UpperHex},
+    str::FromStr,
+};
 
 mod fr;
 
@@ -17,19 +20,9 @@ pub struct FieldElement {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum FromDecStrError {
+pub enum FromStrError {
     #[error("invalid character")]
     InvalidCharacter,
-    #[error("number out of range")]
-    OutOfRange,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum FromHexError {
-    #[error("invalid character")]
-    InvalidCharacter,
-    #[error("invalid length")]
-    InvalidLength,
     #[error("number out of range")]
     OutOfRange,
 }
@@ -45,6 +38,10 @@ pub enum FromByteSliceError {
 #[derive(Debug, thiserror::Error)]
 #[error("number out of range")]
 pub struct FromByteArrayError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("field element value out of range")]
+pub struct ValueOutOfRangeError;
 
 struct InnerDebug<'a>(pub &'a FieldElement);
 
@@ -70,21 +67,21 @@ impl FieldElement {
         }
     }
 
-    pub fn from_dec_str(value: &str) -> Result<Self, FromDecStrError> {
+    pub fn from_dec_str(value: &str) -> Result<Self, FromStrError> {
         // Ported from:
         //   https://github.com/paritytech/parity-common/blob/b37d0b312d39fa47c61c4430b30ca87d90e45a08/uint/src/uint.rs#L599
 
         let mut res = U256::ZERO;
         for b in value.bytes().map(|b| b.wrapping_sub(b'0')) {
             if b > 9 {
-                return Err(FromDecStrError::InvalidCharacter);
+                return Err(FromStrError::InvalidCharacter);
             }
             let r = {
                 let product = res.checked_mul(&U256::from_u8(10));
                 if product.is_some().into() {
                     product.unwrap()
                 } else {
-                    return Err(FromDecStrError::OutOfRange);
+                    return Err(FromStrError::OutOfRange);
                 }
             };
             let r = {
@@ -92,7 +89,7 @@ impl FieldElement {
                 if sum.is_some().into() {
                     sum.unwrap()
                 } else {
-                    return Err(FromDecStrError::OutOfRange);
+                    return Err(FromStrError::OutOfRange);
                 }
             };
             res = r;
@@ -100,10 +97,10 @@ impl FieldElement {
 
         Fp256::<FrParameters>::from_repr(u256_to_biginteger256(&res))
             .map(|inner| Self { inner })
-            .ok_or(FromDecStrError::OutOfRange)
+            .ok_or(FromStrError::OutOfRange)
     }
 
-    pub fn from_hex_be(value: &str) -> Result<Self, FromHexError> {
+    pub fn from_hex_be(value: &str) -> Result<Self, FromStrError> {
         let value = value.trim_start_matches("0x");
 
         let hex_chars_len = value.len();
@@ -111,7 +108,7 @@ impl FieldElement {
 
         let parsed_bytes: [u8; U256_BYTE_COUNT] = if hex_chars_len == expected_hex_length {
             let mut buffer = [0u8; U256_BYTE_COUNT];
-            hex::decode_to_slice(value, &mut buffer).map_err(|_| FromHexError::InvalidCharacter)?;
+            hex::decode_to_slice(value, &mut buffer).map_err(|_| FromStrError::InvalidCharacter)?;
             buffer
         } else if hex_chars_len < expected_hex_length {
             let mut padded_hex = str::repeat("0", expected_hex_length - hex_chars_len);
@@ -119,15 +116,15 @@ impl FieldElement {
 
             let mut buffer = [0u8; U256_BYTE_COUNT];
             hex::decode_to_slice(&padded_hex, &mut buffer)
-                .map_err(|_| FromHexError::InvalidCharacter)?;
+                .map_err(|_| FromStrError::InvalidCharacter)?;
             buffer
         } else {
-            return Err(FromHexError::InvalidLength);
+            return Err(FromStrError::OutOfRange);
         };
 
         match Self::from_bytes_be(&parsed_bytes) {
             Ok(value) => Ok(value),
-            Err(_) => Err(FromHexError::OutOfRange),
+            Err(_) => Err(FromStrError::OutOfRange),
         }
     }
 
@@ -140,6 +137,17 @@ impl FieldElement {
     /// * `bytes`: The byte array in **big endian** format
     pub fn from_bytes_be(bytes: &[u8; 32]) -> Result<Self, FromByteArrayError> {
         Self::from_byte_slice(bytes).ok_or(FromByteArrayError)
+    }
+
+    /// Interprets the field element as a decimal number of a certain decimal places.
+    #[cfg(feature = "bigdecimal")]
+    pub fn to_big_decimal<D: Into<i64>>(&self, decimals: D) -> bigdecimal::BigDecimal {
+        use num_bigint::{BigInt, Sign};
+
+        bigdecimal::BigDecimal::new(
+            BigInt::from_bytes_be(Sign::Plus, &self.to_bytes_be()),
+            decimals.into(),
+        )
     }
 
     /// Transforms [FieldElement] into little endian bit representation.
@@ -162,12 +170,37 @@ impl FieldElement {
         buffer
     }
 
+    /// Transforms [FieldElement] into its Montgomery representation
+    pub const fn into_mont(self) -> [u64; 4] {
+        self.inner.0 .0
+    }
+
     pub fn invert(&self) -> Option<FieldElement> {
         self.inner.inverse().map(|inner| Self { inner })
     }
 
     pub fn sqrt(&self) -> Option<FieldElement> {
         self.inner.sqrt().map(|inner| Self { inner })
+    }
+
+    /// Performs a floor division. It's not implemented as the `Div` trait on purpose to
+    /// distinguish from the "felt division".
+    pub fn floor_div(&self, rhs: FieldElement) -> FieldElement {
+        let lhs: U256 = self.into();
+        let rhs: U256 = (&rhs).into();
+        let div_result = lhs.div_rem(&rhs);
+
+        if div_result.is_some().into() {
+            let (quotient, _) = div_result.unwrap();
+
+            // It's safe to unwrap here since `rem` is never out of range
+            FieldElement {
+                inner: Fp256::<FrParameters>::from_repr(u256_to_biginteger256(&quotient)).unwrap(),
+            }
+        } else {
+            // TODO: add `checked_floor_div` for panic-less use
+            panic!("division by zero");
+        }
     }
 
     /// For internal use only. The input must be of length [U256_BYTE_COUNT].
@@ -182,6 +215,12 @@ impl FieldElement {
         // No need to check range as `from_repr` already does that
         let big_int = BigInteger256::from_bits_be(&bits);
         Fp256::<FrParameters>::from_repr(big_int).map(|inner| Self { inner })
+    }
+}
+
+impl Default for FieldElement {
+    fn default() -> Self {
+        Self::ZERO
     }
 }
 
@@ -245,6 +284,34 @@ impl std::ops::Rem<FieldElement> for FieldElement {
         } else {
             // TODO: add `checked_rem` for panic-less use
             panic!("division by zero");
+        }
+    }
+}
+
+impl std::ops::BitAnd<FieldElement> for FieldElement {
+    type Output = FieldElement;
+
+    fn bitand(self, rhs: FieldElement) -> Self::Output {
+        let lhs: U256 = (&self).into();
+        let rhs: U256 = (&rhs).into();
+
+        // It's safe to unwrap here since the result is never out of range
+        FieldElement {
+            inner: Fp256::<FrParameters>::from_repr(u256_to_biginteger256(&(lhs & rhs))).unwrap(),
+        }
+    }
+}
+
+impl std::ops::BitOr<FieldElement> for FieldElement {
+    type Output = FieldElement;
+
+    fn bitor(self, rhs: FieldElement) -> Self::Output {
+        let lhs: U256 = (&self).into();
+        let rhs: U256 = (&rhs).into();
+
+        // It's safe to unwrap here since the result is never out of range
+        FieldElement {
+            inner: Fp256::<FrParameters>::from_repr(u256_to_biginteger256(&(lhs | rhs))).unwrap(),
         }
     }
 }
@@ -373,6 +440,33 @@ impl<'de> Deserialize<'de> for FieldElement {
     }
 }
 
+impl From<u8> for FieldElement {
+    fn from(value: u8) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
+    }
+}
+
+impl From<u16> for FieldElement {
+    fn from(value: u16) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
+    }
+}
+
+impl From<u32> for FieldElement {
+    fn from(value: u32) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
+    }
+}
+
 impl From<u64> for FieldElement {
     fn from(value: u64) -> Self {
         Self {
@@ -386,6 +480,70 @@ impl From<usize> for FieldElement {
         Self {
             inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
                 .unwrap(),
+        }
+    }
+}
+
+impl FromStr for FieldElement {
+    type Err = FromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("0x") {
+            FieldElement::from_hex_be(s)
+        } else {
+            FieldElement::from_dec_str(s)
+        }
+    }
+}
+
+impl TryFrom<FieldElement> for u8 {
+    type Error = ValueOutOfRangeError;
+
+    fn try_from(value: FieldElement) -> Result<Self, Self::Error> {
+        let repr = value.inner.into_repr().0;
+        if repr[0] > u8::MAX as u64 || repr[1] > 0 || repr[2] > 0 || repr[3] > 0 {
+            Err(ValueOutOfRangeError)
+        } else {
+            Ok(repr[0] as u8)
+        }
+    }
+}
+
+impl TryFrom<FieldElement> for u16 {
+    type Error = ValueOutOfRangeError;
+
+    fn try_from(value: FieldElement) -> Result<Self, Self::Error> {
+        let repr = value.inner.into_repr().0;
+        if repr[0] > u16::MAX as u64 || repr[1] > 0 || repr[2] > 0 || repr[3] > 0 {
+            Err(ValueOutOfRangeError)
+        } else {
+            Ok(repr[0] as u16)
+        }
+    }
+}
+
+impl TryFrom<FieldElement> for u32 {
+    type Error = ValueOutOfRangeError;
+
+    fn try_from(value: FieldElement) -> Result<Self, Self::Error> {
+        let repr = value.inner.into_repr().0;
+        if repr[0] > u32::MAX as u64 || repr[1] > 0 || repr[2] > 0 || repr[3] > 0 {
+            Err(ValueOutOfRangeError)
+        } else {
+            Ok(repr[0] as u32)
+        }
+    }
+}
+
+impl TryFrom<FieldElement> for u64 {
+    type Error = ValueOutOfRangeError;
+
+    fn try_from(value: FieldElement) -> Result<Self, Self::Error> {
+        let repr = value.inner.into_repr().0;
+        if repr[1] > 0 || repr[2] > 0 || repr[3] > 0 {
+            Err(ValueOutOfRangeError)
+        } else {
+            Ok(repr[0])
         }
     }
 }
@@ -430,6 +588,12 @@ fn u256_to_u64_array(num: &U256) -> [u64; 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_default_value() {
+        assert_eq!(FieldElement::default(), FieldElement::ZERO)
+    }
 
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -550,6 +714,109 @@ mod tests {
                 FieldElement::from_dec_str(item[0]).unwrap()
                     % FieldElement::from_dec_str(item[1]).unwrap(),
                 FieldElement::from_dec_str(item[2]).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_bitwise_and() {
+        let operands = [[123456_u64, 567890], [613221132151, 4523451]];
+
+        for item in operands.iter() {
+            let lhs: FieldElement = item[0].into();
+            let rhs: FieldElement = item[1].into();
+            assert_eq!(lhs & rhs, (item[0] & item[1]).into());
+        }
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_bitwise_or() {
+        let operands = [[123456_u64, 567890], [613221132151, 4523451]];
+
+        for item in operands.iter() {
+            let lhs: FieldElement = item[0].into();
+            let rhs: FieldElement = item[1].into();
+            assert_eq!(lhs | rhs, (item[0] | item[1]).into());
+        }
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_floor_division() {
+        let quotients = [["123456", "100", "1234"], ["7", "3", "2"], ["3", "6", "0"]];
+
+        for item in quotients.iter() {
+            assert_eq!(
+                FieldElement::from_dec_str(item[0])
+                    .unwrap()
+                    .floor_div(FieldElement::from_dec_str(item[1]).unwrap()),
+                FieldElement::from_dec_str(item[2]).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_to_primitives() {
+        let fe_256: FieldElement = 256u16.into();
+
+        if u8::try_from(fe_256).is_ok() {
+            panic!("invalid conversion");
+        }
+
+        assert_eq!(u16::try_from(fe_256).unwrap(), 256u16);
+        assert_eq!(u32::try_from(fe_256).unwrap(), 256u32);
+        assert_eq!(u64::try_from(fe_256).unwrap(), 256u64);
+    }
+
+    #[test]
+    #[cfg(feature = "bigdecimal")]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_to_big_decimal() {
+        use bigdecimal::{BigDecimal, Num};
+
+        let nums = [
+            (
+                "134500",
+                5,
+                BigDecimal::from_str_radix("1.345", 10).unwrap(),
+            ),
+            (
+                "134500",
+                0,
+                BigDecimal::from_str_radix("134500", 10).unwrap(),
+            ),
+            (
+                "134500",
+                10,
+                BigDecimal::from_str_radix("0.00001345", 10).unwrap(),
+            ),
+        ];
+
+        for num in nums.into_iter() {
+            assert_eq!(
+                FieldElement::from_dec_str(num.0)
+                    .unwrap()
+                    .to_big_decimal(num.1),
+                num.2
+            );
+        }
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_from_str() {
+        let nums = [
+            ("134500", "0x20d64"),
+            ("9999999999999999", "0x2386f26fc0ffff"),
+        ];
+
+        for num in nums.into_iter() {
+            assert_eq!(
+                num.0.parse::<FieldElement>().unwrap(),
+                num.1.parse::<FieldElement>().unwrap(),
             );
         }
     }

@@ -13,7 +13,7 @@ pub enum BlockId {
     Latest,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum BlockStatus {
@@ -52,6 +52,8 @@ pub struct Block {
     pub gas_price: FieldElement,
     pub transactions: Vec<TransactionType>,
     pub transaction_receipts: Vec<ConfirmedTransactionReceipt>,
+    // Field marked optional as old blocks don't include it yet. Drop optional once resolved.
+    pub starknet_version: Option<String>,
 }
 
 #[cfg(test)]
@@ -91,7 +93,7 @@ mod tests {
             panic!("Did not deserialize Transaction::InvokeFunction properly");
         }
         let receipt = &block.transaction_receipts[0];
-        assert_eq!(receipt.execution_resources.n_steps, 68);
+        assert_eq!(receipt.execution_resources.as_ref().unwrap().n_steps, 68);
     }
 
     #[test]
@@ -108,6 +110,26 @@ mod tests {
         let receipt = &block.transaction_receipts[22];
         assert_eq!(receipt.l2_to_l1_messages.len(), 1);
         assert_eq!(receipt.l2_to_l1_messages[0].payload.len(), 2);
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_with_messages_without_nonce() {
+        // has an L2 to L1 message
+        let raw = include_str!(
+            "../../test-data/raw_gateway_responses/get_block/9_with_messages_without_nonce.txt"
+        );
+
+        let block: Block = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(block.block_number.unwrap(), 1564);
+        assert_eq!(block.transaction_receipts.len(), 4);
+        let receipt = &block.transaction_receipts[1];
+        assert_eq!(receipt.l2_to_l1_messages.len(), 1);
+        assert_eq!(receipt.l2_to_l1_messages[0].payload.len(), 2);
+
+        let receipt = &block.transaction_receipts[2];
+        assert!(receipt.l1_to_l2_consumed_message.is_some());
     }
 
     #[test]
@@ -141,35 +163,6 @@ mod tests {
 
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn test_block_deser_new_attributes_0_8_1() {
-        // This block contains new fields introduced in StarkNet v0.8.1
-        let new_block: Block = serde_json::from_str(include_str!(
-            "../../test-data/raw_gateway_responses/get_block/5_with_class_hash_and_actual_fee.txt"
-        ))
-        .unwrap();
-        match &new_block.transactions[43] {
-            TransactionType::Deploy(transaction) => {
-                assert!(transaction.class_hash.is_some());
-            }
-            _ => panic!("Unexpected transaction type"),
-        }
-        assert!(&new_block.transaction_receipts[0].actual_fee.is_some());
-
-        let old_block: Block = serde_json::from_str(include_str!(
-            "../../test-data/raw_gateway_responses/get_block/2_with_messages.txt"
-        ))
-        .unwrap();
-        match &old_block.transactions[2] {
-            TransactionType::Deploy(transaction) => {
-                assert!(transaction.class_hash.is_none());
-            }
-            _ => panic!("Unexpected transaction type"),
-        }
-        assert!(&old_block.transaction_receipts[0].actual_fee.is_none());
-    }
-
-    #[test]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_block_deser_new_attributes_0_8_2() {
         // This block contains new fields introduced in StarkNet v0.8.2
         let new_block: Block = serde_json::from_str(include_str!(
@@ -183,5 +176,91 @@ mod tests {
         ))
         .unwrap();
         assert!(old_block.sequencer_address.is_none());
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_new_attributes_0_9_1() {
+        // This block contains new fields introduced in StarkNet v0.9.1
+        let new_block: Block = serde_json::from_str(include_str!(
+            "../../test-data/raw_gateway_responses/get_block/8_with_starknet_version.txt"
+        ))
+        .unwrap();
+        assert!(new_block.starknet_version.is_some());
+
+        let old_block: Block = serde_json::from_str(include_str!(
+            "../../test-data/raw_gateway_responses/get_block/2_with_messages.txt"
+        ))
+        .unwrap();
+        assert!(old_block.starknet_version.is_none());
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_with_declare_tx() {
+        let raw =
+            include_str!("../../test-data/raw_gateway_responses/get_block/7_with_declare_tx.txt");
+
+        let block: Block = serde_json::from_str(raw).unwrap();
+
+        let tx = match &block.transactions[26] {
+            TransactionType::Declare(tx) => tx,
+            _ => panic!("Unexpected tx type"),
+        };
+
+        assert_eq!(tx.sender_address, FieldElement::ONE);
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_with_l1_handler() {
+        let raw =
+            include_str!("../../test-data/raw_gateway_responses/get_block/10_with_l1_handler.txt");
+
+        let block: Block = serde_json::from_str(raw).unwrap();
+
+        let tx = match &block.transactions[23] {
+            TransactionType::L1Handler(tx) => tx,
+            _ => panic!("Unexpected tx type"),
+        };
+
+        assert_eq!(
+            tx.contract_address,
+            FieldElement::from_hex_be(
+                "0x4a472fe795cc40e9dc838fe4f1608cb91bf027854d016675ec81e172a2e3599"
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_without_execution_resources() {
+        let raw = include_str!(
+            "../../test-data/raw_gateway_responses/get_block/11_without_execution_resources.txt"
+        );
+
+        let block: Block = serde_json::from_str(raw).unwrap();
+
+        let receipt = &block.transaction_receipts[17];
+
+        assert!(receipt.execution_resources.is_none());
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_block_deser_l1_handler_without_nonce() {
+        let raw = include_str!(
+            "../../test-data/raw_gateway_responses/get_block/12_l1_handler_without_nonce.txt"
+        );
+
+        let block: Block = serde_json::from_str(raw).unwrap();
+
+        let tx = match &block.transactions[22] {
+            TransactionType::L1Handler(tx) => tx,
+            _ => panic!("Unexpected tx type"),
+        };
+
+        assert!(tx.nonce.is_none());
     }
 }

@@ -17,6 +17,7 @@ pub struct Receipt {
     pub block_hash: Option<FieldElement>,
     pub block_number: Option<u64>,
     pub events: Vec<Event>,
+    #[serde(default)]
     pub execution_resources: Option<ExecutionResources>,
     pub l1_to_l2_consumed_message: Option<L1ToL2Message>,
     pub l2_to_l1_messages: Vec<L2ToL1Message>,
@@ -37,18 +38,16 @@ pub struct ConfirmedReceipt {
     #[serde_as(as = "UfeHex")]
     pub transaction_hash: FieldElement,
     pub transaction_index: u64,
-    pub execution_resources: ExecutionResources,
+    #[serde(default)]
+    pub execution_resources: Option<ExecutionResources>,
     pub l1_to_l2_consumed_message: Option<L1ToL2Message>,
     pub l2_to_l1_messages: Vec<L2ToL1Message>,
     pub events: Vec<Event>,
-    // This field is marked optional because it's missing from old blocks. Drop `Option` once it's
-    // resolved.
-    #[serde(default)]
-    #[serde_as(as = "Option<UfeHex>")]
-    pub actual_fee: Option<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub actual_fee: FieldElement,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum TransactionStatus {
@@ -97,6 +96,7 @@ pub struct L1ToL2Message {
     pub selector: FieldElement,
     #[serde_as(deserialize_as = "Vec<UfeHex>")]
     pub payload: Vec<FieldElement>,
+    #[serde(default)]
     #[serde_as(deserialize_as = "Option<UfeHex>")]
     pub nonce: Option<FieldElement>,
 }

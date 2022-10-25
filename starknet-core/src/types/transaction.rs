@@ -13,8 +13,10 @@ use serde_with::serde_as;
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum TransactionType {
+    Declare(DeclareTransaction),
     Deploy(DeployTransaction),
     InvokeFunction(InvokeFunctionTransaction),
+    L1Handler(L1HandlerTransaction),
 }
 
 #[serde_as]
@@ -51,13 +53,33 @@ pub struct TransactionInfo {
     pub transaction_index: Option<u64>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum EntryPointType {
     External,
     L1Handler,
     Constructor,
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+pub struct DeclareTransaction {
+    #[serde_as(as = "UfeHex")]
+    pub class_hash: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub sender_address: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub nonce: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub max_fee: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub version: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub transaction_hash: FieldElement,
+    #[serde_as(deserialize_as = "Vec<UfeHex>")]
+    pub signature: Vec<FieldElement>,
 }
 
 #[serde_as]
@@ -70,12 +92,12 @@ pub struct DeployTransaction {
     pub contract_address: FieldElement,
     #[serde_as(as = "UfeHex")]
     pub contract_address_salt: FieldElement,
-    // Field marked optional as old blocks don't include it yet. Drop optional once resolved.
-    #[serde(default)]
-    #[serde_as(as = "Option<UfeHex>")]
-    pub class_hash: Option<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub class_hash: FieldElement,
     #[serde_as(as = "UfeHex")]
     pub transaction_hash: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub version: FieldElement,
 }
 
 #[serde_as]
@@ -95,6 +117,30 @@ pub struct InvokeFunctionTransaction {
     pub transaction_hash: FieldElement,
     #[serde_as(as = "UfeHex")]
     pub max_fee: FieldElement,
+    #[serde(default)]
+    #[serde_as(as = "Option<UfeHex>")]
+    pub nonce: Option<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub version: FieldElement,
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+pub struct L1HandlerTransaction {
+    #[serde_as(as = "UfeHex")]
+    pub contract_address: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub entry_point_selector: FieldElement,
+    #[serde_as(deserialize_as = "Vec<UfeHex>")]
+    pub calldata: Vec<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub transaction_hash: FieldElement,
+    #[serde(default)]
+    #[serde_as(as = "Option<UfeHex>")]
+    pub nonce: Option<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub version: FieldElement,
 }
 
 #[cfg(test)]
@@ -154,6 +200,19 @@ mod tests {
         assert!(tx.transaction_failure_reason.is_some());
         let failure_reason = tx.transaction_failure_reason.unwrap();
         assert_eq!(failure_reason.code, "TRANSACTION_FAILED");
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_deser_full_declare_transaction() {
+        let raw =
+            include_str!("../../test-data/raw_gateway_responses/get_transaction/5_declare.txt");
+        let tx: TransactionInfo = serde_json::from_str(raw).unwrap();
+
+        match tx.r#type.unwrap() {
+            TransactionType::Declare(_) => {}
+            _ => panic!("Did not deserialize TransactionType::Declare properly"),
+        }
     }
 
     #[test]

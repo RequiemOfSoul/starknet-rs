@@ -5,7 +5,8 @@
 
 **Complete StarkNet library in Rust**
 
-![starknet-version-v0.8.2](https://img.shields.io/badge/StarkNet_Version-v0.8.2-2ea44f?logo=ethereum)
+![starknet-version-v0.10.0](https://img.shields.io/badge/StarkNet_Version-v0.10.0-2ea44f?logo=ethereum)
+[![jsonrpc-spec-v0.1.0](https://img.shields.io/badge/JSON--RPC-v0.1.0-2ea44f?logo=ethereum)](https://github.com/starkware-libs/starknet-specs/tree/v0.1.0)
 [![linting-badge](https://github.com/xJonathanLEI/starknet-rs/actions/workflows/lint.yaml/badge.svg?branch=master)](https://github.com/xJonathanLEI/starknet-rs/actions/workflows/lint.yaml)
 [![crates-badge](https://img.shields.io/crates/v/starknet.svg)](https://crates.io/crates/starknet)
 
@@ -15,7 +16,14 @@
 
 ## Adding starknet-rs to your project
 
-Note that the [crates.io version](https://crates.io/crates/starknet) is currently outdated, and you're advised to use it from GitHub directly instead:
+To use the crate from [crates.io](https://crates.io/crates/starknet), add the following to your `Cargo.toml` file:
+
+```toml
+[dependencies]
+starknet = "0.2.0"
+```
+
+Note that the [crates.io version](https://crates.io/crates/starknet) might be outdated. You may want to use the library directly from GitHub for all the latest features and fixes:
 
 ```toml
 [dependencies]
@@ -25,7 +33,7 @@ starknet = { git = "https://github.com/xJonathanLEI/starknet-rs" }
 ## Features
 
 - [x] Sequencer gateway / feeder gateway client
-- [ ] Full node JSON-RPC API client
+- [x] Full node JSON-RPC API client
 - [x] Smart contract deployment
 - [x] Signer for using [IAccount](https://github.com/OpenZeppelin/cairo-contracts/blob/main/src/openzeppelin/account/IAccount.cairo) account contracts
 - [ ] Strongly-typed smart contract binding code generation from ABI
@@ -42,6 +50,7 @@ This workspace contains the following crates:
 - `starknet-signers`: StarkNet signer implementations
 - `starknet-accounts`: Types for handling StarkNet account abstraction
 - `starknet-ff`: StarkNet field element type
+- `starknet-macros`: Useful macros for using the `starknet` crates
 
 ## Example
 
@@ -54,6 +63,14 @@ Examples can be found in the [examples folder](./examples):
 3. [Mint yourself 1,000 TST tokens on `alpha-goerli`](./examples/mint_tokens.rs)
 
    Make sure your account has some L2 Goerli ETH to pay for the transaction fee. You can use [this faucet](https://faucet.goerli.starknet.io/) to fund your account.
+
+4. [Declare contract on `alpha-goerli` testnet](./examples/declare_contract.rs)
+
+   Declaring contracts without going through an account (and thus not paying fees) has been deprecated, so please make sure your account has enough L2 Goerli ETH for the fees.
+
+5. [Query the latest block number with JSON-RPC](./examples/jsonrpc.rs)
+
+6. [Call a contract view function via sequencer gateway](./examples/sequencer_erc20_balance.rs)
 
 ## License
 

@@ -1,11 +1,10 @@
-use flate2::{write::GzEncoder, Compression};
 use rand::{prelude::StdRng, RngCore, SeedableRng};
 use starknet_core::types::{
-    AbiEntry, AddTransactionResult, ContractArtifact, ContractDefinition, DeployTransactionRequest,
-    EntryPointsByType, FieldElement, TransactionRequest,
+    contract_artifact::CompressProgramError, AbiEntry, AddTransactionResult, ContractArtifact,
+    ContractDefinition, DeployTransactionRequest, EntryPointsByType, FieldElement,
+    TransactionRequest,
 };
 use starknet_providers::Provider;
-use std::io::Write;
 
 pub struct Factory<P>
 where
@@ -17,33 +16,14 @@ where
     provider: P,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum FactoryError {
-    #[error(transparent)]
-    CannotSerializeProgram(serde_json::Error),
-    #[error(transparent)]
-    CannotCompressProgram(std::io::Error),
-}
-
 impl<P: Provider> Factory<P> {
-    pub fn new(artifact: ContractArtifact, provider: P) -> Result<Self, FactoryError> {
-        let program_json = serde_json::to_string(&artifact.program)
-            .map_err(FactoryError::CannotSerializeProgram)?;
-
-        // Use best compression level to optimize for payload size
-        let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::best());
-        gzip_encoder
-            .write_all(program_json.as_bytes())
-            .map_err(FactoryError::CannotCompressProgram)?;
-
-        let compressed_program = gzip_encoder
-            .finish()
-            .map_err(FactoryError::CannotCompressProgram)?;
+    pub fn new(artifact: &ContractArtifact, provider: P) -> Result<Self, CompressProgramError> {
+        let compressed_program = artifact.program.compress()?;
 
         Ok(Self {
             compressed_program,
-            entry_points_by_type: artifact.entry_points_by_type,
-            abi: artifact.abi,
+            entry_points_by_type: artifact.entry_points_by_type.clone(),
+            abi: artifact.abi.clone(),
             provider,
         })
     }

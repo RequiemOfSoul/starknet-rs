@@ -2,18 +2,20 @@
 pub use ethereum_types::Address as L1Address;
 
 mod block;
-pub use block::{Block, BlockId};
+pub use block::{Block, BlockId, BlockStatus};
 
 mod transaction;
 pub use transaction::{
-    DeployTransaction, EntryPointType, InvokeFunctionTransaction, TransactionFailureReason,
-    TransactionInfo, TransactionStatusInfo, TransactionType,
+    DeclareTransaction, DeployTransaction, EntryPointType, InvokeFunctionTransaction,
+    L1HandlerTransaction, TransactionFailureReason, TransactionInfo, TransactionStatusInfo,
+    TransactionType,
 };
 
 mod transaction_receipt;
 pub use transaction_receipt::{
     BuiltinInstanceCounter, ConfirmedReceipt as ConfirmedTransactionReceipt, Event,
-    ExecutionResources, L2ToL1Message, Receipt as TransactionReceipt, TransactionStatus,
+    ExecutionResources, L1ToL2Message, L2ToL1Message, Receipt as TransactionReceipt,
+    TransactionStatus,
 };
 
 mod starknet_error;
@@ -33,7 +35,8 @@ pub use call_contract::CallContractResult;
 
 mod transaction_request;
 pub use transaction_request::{
-    AddTransactionResult, AddTransactionResultCode, ContractDefinition,
+    AccountTransaction, AddTransactionResult, AddTransactionResultCode, CallFunction,
+    CallL1Handler, ContractDefinition, DeclareTransaction as DeclareTransactionRequest,
     DeployTransaction as DeployTransactionRequest, EntryPoint, EntryPointsByType,
     InvokeFunctionTransaction as InvokeFunctionTransactionRequest, TransactionRequest,
 };
@@ -47,7 +50,7 @@ pub mod contract_artifact;
 pub use contract_artifact::ContractArtifact;
 
 mod fee;
-pub use fee::{FeeEstimate, FeeUnit};
+pub use fee::{FeeEstimate, FeeUnit, TransactionSimulationInfo};
 
 pub mod trace;
-pub use trace::TransactionTrace;
+pub use trace::{BlockTraces, TransactionTrace};
