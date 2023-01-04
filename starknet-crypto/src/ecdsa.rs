@@ -1,9 +1,10 @@
-use serde::{Serialize, Deserialize};
-use starknet_ff::FromByteArrayError;
+use starknet_curve::{
+    curve_params::{EC_ORDER, GENERATOR},
+    AffinePoint,
+};
+
 use crate::{
-    ec_point::EcPoint,
     fe_utils::{add_unbounded, bigint_mul_mod_floor, mod_inverse, mul_mod_floor},
-    pedersen_params::{CONSTANT_POINTS, EC_ORDER},
     FieldElement, SignError, VerifyError,
 };
 use std::fmt;
@@ -16,7 +17,7 @@ const ELEMENT_UPPER_BOUND: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Stark ECDSA signature
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Signature {
     /// The `r` value of a signature
     pub r: FieldElement,
@@ -35,30 +36,13 @@ impl fmt::Display for Signature {
     }
 }
 
-impl Signature{
-    pub fn from_bytes_be(bytes: [u8;64]) -> Result<Self, FromByteArrayError>{
-        let r= FieldElement::from_byte_slice(&bytes[0..32]).ok_or(FromByteArrayError)?;
-        let s= FieldElement::from_byte_slice(&bytes[32..64]).ok_or(FromByteArrayError)?;
-        Ok(Self{r, s})
-    }
-    
-    pub fn to_bytes_be(&self) -> Vec<u8> {
-        let r = self.r.to_bytes_be();
-        let s = self.s.to_bytes_be();
-        let mut bytes = Vec::with_capacity(r.len() + s.len());
-        bytes.extend(r);
-        bytes.extend(s);
-        bytes
-    }
-}
-
 /// Computes the public key given a Stark private key.
 ///
 /// ### Arguments
 ///
 /// * `private_key`: The private key
 pub fn get_public_key(private_key: &FieldElement) -> FieldElement {
-    CONSTANT_POINTS[1].multiply(&private_key.to_bits_le()).x
+    (&GENERATOR * &private_key.to_bits_le()).x
 }
 
 /// Computes ECDSA signature given a Stark private key and message hash.
@@ -80,9 +64,7 @@ pub fn sign(
         return Err(SignError::InvalidK);
     }
 
-    let generator = &CONSTANT_POINTS[1];
-
-    let r = generator.multiply(&k.to_bits_le()).x;
+    let r = (&GENERATOR * &k.to_bits_le()).x;
     if r == FieldElement::ZERO || r >= ELEMENT_UPPER_BOUND {
         return Err(SignError::InvalidK);
     }
@@ -123,9 +105,7 @@ pub fn verify(
         return Err(VerifyError::InvalidS);
     }
 
-    let full_public_key = EcPoint::from_x(*public_key);
-
-    let generator = &CONSTANT_POINTS[1];
+    let full_public_key = AffinePoint::from_x(*public_key);
 
     let w = mod_inverse(s, &EC_ORDER);
     if w == FieldElement::ZERO || w >= ELEMENT_UPPER_BOUND {
@@ -133,12 +113,12 @@ pub fn verify(
     }
 
     let zw = mul_mod_floor(message, &w, &EC_ORDER);
-    let zw_g = generator.multiply(&zw.to_bits_le());
+    let zw_g = &GENERATOR * &zw.to_bits_le();
 
     let rw = mul_mod_floor(r, &w, &EC_ORDER);
-    let rw_q = full_public_key.multiply(&rw.to_bits_le());
+    let rw_q = &full_public_key * &rw.to_bits_le();
 
-    Ok(zw_g.add(&rw_q).x == *r || zw_g.subtract(&rw_q).x == *r)
+    Ok((&zw_g + &rw_q).x == *r || (&zw_g - &rw_q).x == *r)
 }
 
 #[cfg(test)]

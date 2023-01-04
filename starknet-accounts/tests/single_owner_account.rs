@@ -1,11 +1,12 @@
 use starknet_accounts::{Account, Call, SingleOwnerAccount};
 use starknet_core::{
     chain_id,
-    types::{AddTransactionResultCode, BlockId, FieldElement},
+    types::{AddTransactionResultCode, BlockId, ContractArtifact, FieldElement},
     utils::get_selector_from_name,
 };
 use starknet_providers::SequencerGatewayProvider;
 use starknet_signers::{LocalWallet, SigningKey};
+use std::sync::Arc;
 
 #[tokio::test]
 async fn can_get_nonce() {
@@ -17,7 +18,7 @@ async fn can_get_nonce() {
         .unwrap(),
     ));
     let address = FieldElement::from_hex_be(
-        "01352dd0ac2a462cb53e4f125169b28f13bd6199091a9815c444dcae83056bbc",
+        "02da37a17affbd2df4ede7120dae305ec36dfe94ec96a8c3f49bbf59f4e9a9fa",
     )
     .unwrap();
 
@@ -39,7 +40,7 @@ async fn can_estimate_fee() {
         .unwrap(),
     ));
     let address = FieldElement::from_hex_be(
-        "01352dd0ac2a462cb53e4f125169b28f13bd6199091a9815c444dcae83056bbc",
+        "02da37a17affbd2df4ede7120dae305ec36dfe94ec96a8c3f49bbf59f4e9a9fa",
     )
     .unwrap();
     let tst_token_address = FieldElement::from_hex_be(
@@ -77,7 +78,7 @@ async fn can_estimate_fee() {
         .await
         .unwrap();
 
-    assert!(fee_estimate.amount > 0);
+    assert!(fee_estimate.overall_fee > 0);
 }
 
 #[tokio::test]
@@ -97,7 +98,7 @@ async fn can_execute_tst_mint() {
         .unwrap(),
     ));
     let address = FieldElement::from_hex_be(
-        "01352dd0ac2a462cb53e4f125169b28f13bd6199091a9815c444dcae83056bbc",
+        "02da37a17affbd2df4ede7120dae305ec36dfe94ec96a8c3f49bbf59f4e9a9fa",
     )
     .unwrap();
     let tst_token_address = FieldElement::from_hex_be(
@@ -129,6 +130,38 @@ async fn can_execute_tst_mint() {
             },
         ]).await.unwrap();
     let result = account.send_transaction(&call)
+        .await
+        .unwrap();
+
+    assert_eq!(result.code, AddTransactionResultCode::TransactionReceived);
+}
+
+#[tokio::test]
+async fn can_declare_oz_account_contract() {
+    // This test case is not very useful, same as `can_execute_tst_mint` above.
+
+    let provider = SequencerGatewayProvider::starknet_alpha_goerli();
+    let signer = LocalWallet::from(SigningKey::from_secret_scalar(
+        FieldElement::from_hex_be(
+            "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        )
+        .unwrap(),
+    ));
+    let address = FieldElement::from_hex_be(
+        "02da37a17affbd2df4ede7120dae305ec36dfe94ec96a8c3f49bbf59f4e9a9fa",
+    )
+    .unwrap();
+    let account = SingleOwnerAccount::new(provider, signer, address, chain_id::TESTNET);
+
+    let contract_artifact: ContractArtifact =
+        serde_json::from_str(include_str!("../test-data/artifacts/oz_account.txt")).unwrap();
+
+    let result = account
+        .declare(
+            Arc::new(contract_artifact.compress().unwrap()),
+            contract_artifact.class_hash().unwrap(),
+        )
+        .send()
         .await
         .unwrap();
 

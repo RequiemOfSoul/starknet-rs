@@ -453,6 +453,12 @@ fn should_skip_attributes_for_hinted_hash(value: &Option<Vec<Attribute>>) -> boo
 mod tests {
     use super::*;
 
+    #[derive(serde::Deserialize)]
+    struct ContractHashes {
+        hinted_class_hash: String,
+        class_hash: String,
+    }
+
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_artifact_deser_oz_account() {
@@ -507,12 +513,11 @@ mod tests {
         .unwrap();
         let computed_hash = artifact.class_hash().unwrap();
 
-        // Generated with `cairo-lang` v0.10.0
-        // TODO: generate this inside Docker
-        let expected_hash = FieldElement::from_hex_be(
-            "0x0045d788d040561528a1ac1c05f8b1606dc726d88dfa857b66a98ff7d2fbe72a",
-        )
+        let hashes: ContractHashes = serde_json::from_str(include_str!(
+            "../../test-data/contracts/artifacts/oz_account.hashes.json"
+        ))
         .unwrap();
+        let expected_hash = FieldElement::from_hex_be(&hashes.class_hash).unwrap();
 
         assert_eq!(computed_hash, expected_hash);
     }
@@ -526,12 +531,11 @@ mod tests {
         .unwrap();
         let computed_hash = artifact.hinted_class_hash().unwrap();
 
-        // Generated with `cairo-lang` v0.10.0
-        // TODO: generate this inside Docker
-        let expected_hash = FieldElement::from_hex_be(
-            "0x015b7a3ec0098a3b60fa098dcb966892ad2531459f4910502d44c3adb5a4160e",
-        )
+        let hashes: ContractHashes = serde_json::from_str(include_str!(
+            "../../test-data/contracts/artifacts/oz_account.hashes.json"
+        ))
         .unwrap();
+        let expected_hash = FieldElement::from_hex_be(&hashes.hinted_class_hash).unwrap();
 
         assert_eq!(computed_hash, expected_hash);
     }

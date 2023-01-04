@@ -1,5 +1,5 @@
 use crate::{
-    account::{AccountCall, AttachedTxInfoCall, AttachedAccountDeclaration},
+    account::{AccountCall, AttachedAccountCall, AttachedAccountDeclaration},
     Account, AccountDeclaration, Call,
 };
 
@@ -17,7 +17,7 @@ use starknet_signers::Signer;
 use std::sync::Arc;
 
 /// Cairo string for "invoke"
-pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
+const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
     18443034532770911073,
     18446744073709551615,
     18446744073709551615,
@@ -25,7 +25,7 @@ pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Cairo string for "declare"
-pub const PREFIX_DECLARE: FieldElement = FieldElement::from_mont([
+const PREFIX_DECLARE: FieldElement = FieldElement::from_mont([
     17542456862011667323,
     18446744073709551615,
     18446744073709551615,
@@ -83,7 +83,7 @@ where
         self.chain_id
     }
 
-    pub async fn generate_invoke_request(
+    async fn generate_invoke_request(
         &self,
         calls: &[Call],
         nonce: FieldElement,
@@ -127,7 +127,7 @@ where
         })
     }
 
-    pub async fn generate_declare_request(
+    async fn generate_declare_request(
         &self,
         compressed_class: Arc<ContractDefinition>,
         class_hash: FieldElement,
@@ -155,7 +155,7 @@ where
         })
     }
 
-    pub async fn estimate_fee_for_calls(
+    async fn estimate_fee_for_calls(
         &self,
         calls: &[Call],
         nonce: Option<&FieldElement>,
@@ -180,7 +180,7 @@ where
             .map_err(TransactionError::ProviderError)
     }
 
-    pub async fn estimate_fee_for_declaration(
+    async fn estimate_fee_for_declaration(
         &self,
         compressed_class: Arc<ContractDefinition>,
         class_hash: FieldElement,
@@ -215,7 +215,7 @@ where
     S: Signer + Sync + Send,
 {
     type GetNonceError = P::Error;
-    type SignTransactionError = TransactionError<P::Error, S::SignError>;
+    type EstimateFeeError = TransactionError<P::Error, S::SignError>;
     type SendTransactionError = TransactionError<P::Error, S::SignError>;
 
     fn address(&self) -> FieldElement {
@@ -231,50 +231,14 @@ where
             .await
     }
 
-    async fn execute(&self, calls: &[Call]) -> Result<AttachedTxInfoCall, TransactionError<P::Error, S::SignError>> {
-        let nonce = self.get_nonce(BlockId::Latest).await.map_err(TransactionError::ProviderError)?;
-        let max_fee = {
-            let fee_estimate = self
-                .estimate_fee_for_calls(calls, Some(&nonce))
-                .await?;
-
-            // Adds 10% fee buffer
-            (fee_estimate.gas_usage * 11 / 10).into()
-        };
-        let mut concated_calldata: Vec<FieldElement> = vec![];
-        let mut execute_calldata: Vec<FieldElement> = vec![calls.len().into()];
-        for call in calls.iter() {
-            execute_calldata.push(call.to); // to
-            execute_calldata.push(call.selector); // selector
-            execute_calldata.push(concated_calldata.len().into()); // data_offset
-            execute_calldata.push(call.calldata.len().into()); // data_len
-
-            for item in call.calldata.iter() {
-                concated_calldata.push(*item);
-            }
-        }
-        execute_calldata.push(concated_calldata.len().into()); // calldata_len
-        for item in concated_calldata.into_iter() {
-            execute_calldata.push(item); // calldata
-        }
-        execute_calldata.push(nonce); // nonce
-
-        let transaction_hash = compute_hash_on_elements(&[
-            PREFIX_INVOKE,
-            FieldElement::ZERO, // version
-            self.address,
-            FieldElement::ZERO,
-            compute_hash_on_elements(&execute_calldata),
-            max_fee,
-            self.chain_id,
-        ]);
-        Ok(AttachedTxInfoCall {
+    fn execute(&self, calls: &[Call]) -> AttachedAccountCall<Self> {
+        AttachedAccountCall::<Self> {
             calls: calls.to_vec(),
-            nonce: Some(nonce),
-            max_fee: Some(max_fee),
+            nonce: None,
+            max_fee: None,
             fee_estimate_multiplier: 1.1,
-            transaction_hash
-        })
+            account: self,
+        }
     }
 
     fn declare(
@@ -292,7 +256,7 @@ where
         }
     }
 
-    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::SignTransactionError>
+    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::EstimateFeeError>
     where
         C: AccountCall + Sync,
     {
@@ -303,7 +267,7 @@ where
     async fn estimate_declare_fee<D>(
         &self,
         declaration: &D,
-    ) -> Result<FeeEstimate, Self::SignTransactionError>
+    ) -> Result<FeeEstimate, Self::EstimateFeeError>
     where
         D: AccountDeclaration + Sync,
     {
@@ -347,10 +311,7 @@ where
             .await
             .map_err(Self::SendTransactionError::SignerError)?;
         self.provider
-            .add_transaction(
-                TransactionRequest::InvokeFunction(add_transaction_request),
-                None,
-            )
+            .add_transaction(TransactionRequest::InvokeFunction(add_transaction_request))
             .await
             .map_err(Self::SendTransactionError::ProviderError)
     }
@@ -396,7 +357,7 @@ where
             .await
             .map_err(Self::SendTransactionError::SignerError)?;
         self.provider
-            .add_transaction(TransactionRequest::Declare(add_transaction_request), None)
+            .add_transaction(TransactionRequest::Declare(add_transaction_request))
             .await
             .map_err(Self::SendTransactionError::ProviderError)
     }

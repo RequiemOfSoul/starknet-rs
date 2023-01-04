@@ -9,18 +9,19 @@ use super::{
 use serde::Deserialize;
 use serde_with::serde_as;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum TransactionType {
     Declare(DeclareTransaction),
     Deploy(DeployTransaction),
+    DeployAccount(DeployAccountTransaction),
     InvokeFunction(InvokeFunctionTransaction),
     L1Handler(L1HandlerTransaction),
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionStatusInfo {
     #[serde(default)]
@@ -31,7 +32,7 @@ pub struct TransactionStatusInfo {
     #[serde(alias = "tx_failure_reason")]
     pub transaction_failure_reason: Option<TransactionFailureReason>,
 }
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionFailureReason {
     pub code: String,
@@ -39,7 +40,7 @@ pub struct TransactionFailureReason {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct TransactionInfo {
     #[serde(default)]
@@ -53,7 +54,7 @@ pub struct TransactionInfo {
     pub transaction_index: Option<u64>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub enum EntryPointType {
@@ -63,7 +64,7 @@ pub enum EntryPointType {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct DeclareTransaction {
     #[serde_as(as = "UfeHex")]
@@ -83,7 +84,7 @@ pub struct DeclareTransaction {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct DeployTransaction {
     #[serde_as(deserialize_as = "Vec<UfeHex>")]
@@ -101,14 +102,38 @@ pub struct DeployTransaction {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(test, serde(deny_unknown_fields))]
+pub struct DeployAccountTransaction {
+    #[serde_as(deserialize_as = "Vec<UfeHex>")]
+    pub constructor_calldata: Vec<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub contract_address: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub contract_address_salt: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub class_hash: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub transaction_hash: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub nonce: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub version: FieldElement,
+    #[serde_as(deserialize_as = "Vec<UfeHex>")]
+    pub signature: Vec<FieldElement>,
+    #[serde_as(as = "UfeHex")]
+    pub max_fee: FieldElement,
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct InvokeFunctionTransaction {
     #[serde_as(as = "UfeHex")]
     pub contract_address: FieldElement,
-    pub entry_point_type: EntryPointType,
-    #[serde_as(as = "UfeHex")]
-    pub entry_point_selector: FieldElement,
+    #[serde(default)]
+    #[serde_as(as = "Option<UfeHex>")]
+    pub entry_point_selector: Option<FieldElement>,
     #[serde_as(deserialize_as = "Vec<UfeHex>")]
     pub calldata: Vec<FieldElement>,
     #[serde_as(deserialize_as = "Vec<UfeHex>")]
@@ -125,7 +150,7 @@ pub struct InvokeFunctionTransaction {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[cfg_attr(test, serde(deny_unknown_fields))]
 pub struct L1HandlerTransaction {
     #[serde_as(as = "UfeHex")]
@@ -157,7 +182,6 @@ mod tests {
         assert_eq!(tx.block_number, Some(39099));
         if let TransactionType::InvokeFunction(invoke) = tx.r#type.unwrap() {
             assert_eq!(invoke.signature.len(), 2);
-            assert_eq!(invoke.entry_point_type, EntryPointType::External);
         } else {
             panic!("Did not deserialize TransactionType::InvokeFunction properly")
         }

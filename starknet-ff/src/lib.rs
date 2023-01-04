@@ -57,6 +57,22 @@ impl FieldElement {
         576460752303422960,
     ]);
 
+    /// [FieldElement] constant that's equal to 2
+    pub const TWO: FieldElement = FieldElement::from_mont([
+        18446744073709551553,
+        18446744073709551615,
+        18446744073709551615,
+        576460752303422416,
+    ]);
+
+    /// [FieldElement] constant that's equal to 3
+    pub const THREE: FieldElement = FieldElement::from_mont([
+        18446744073709551521,
+        18446744073709551615,
+        18446744073709551615,
+        576460752303421872,
+    ]);
+
     /// Maximum value of [FieldElement]. Equals to 2^251 + 17 * 2^192.
     pub const MAX: FieldElement = FieldElement::from_mont([32, 0, 0, 544]);
 
@@ -435,8 +451,34 @@ impl<'de> Deserialize<'de> for FieldElement {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        Self::from_dec_str(&value)
-            .map_err(|err| serde::de::Error::custom(format!("invalid decimal string: {}", err)))
+        Self::from_str(&value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl From<u8> for FieldElement {
+    fn from(value: u8) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
+    }
+}
+
+impl From<u16> for FieldElement {
+    fn from(value: u16) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
+    }
+}
+
+impl From<u32> for FieldElement {
+    fn from(value: u32) -> Self {
+        Self {
+            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
+                .unwrap(),
+        }
     }
 }
 

@@ -17,7 +17,6 @@ pub trait Provider {
     async fn add_transaction(
         &self,
         tx: TransactionRequest,
-        token: Option<String>,
     ) -> Result<AddTransactionResult, Self::Error>;
 
     async fn get_contract_addresses(&self) -> Result<ContractAddresses, Self::Error>;
@@ -33,6 +32,12 @@ pub trait Provider {
         tx: AccountTransaction,
         block_identifier: BlockId,
     ) -> Result<FeeEstimate, Self::Error>;
+
+    async fn estimate_fee_bulk(
+        &self,
+        txs: &[AccountTransaction],
+        block_identifier: BlockId,
+    ) -> Result<Vec<FeeEstimate>, Self::Error>;
 
     async fn estimate_message_fee(
         &self,

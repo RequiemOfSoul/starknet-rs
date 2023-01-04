@@ -1,6 +1,6 @@
 [package]
 name = "starknet-crypto"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jonathan LEI <me@xjonathan.dev>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -13,7 +13,9 @@ Low-level cryptography utilities for StarkNet
 keywords = ["ethereum", "starknet", "web3"]
 
 [dependencies]
-starknet-ff = { version = "0.1.0", path = "../starknet-ff" }
+starknet-crypto-codegen = { version = "0.1.0", path = "../starknet-crypto-codegen" }
+starknet-curve = { version = "0.1.0", path = "../starknet-curve" }
+starknet-ff = { version = "0.2.0", path = "../starknet-ff" }
 crypto-bigint = "0.3.2"
 hmac = "0.11.0"
 num-bigint = "0.4.3"
@@ -27,7 +29,7 @@ hex = "0.4.3"
 serde = { version = "1.0.133", features = ["derive"] }
 
 [dev-dependencies]
-criterion = "0.3.5"
+criterion = { version = "0.4.0", default-features = false }
 hex = "0.4.3"
 hex-literal = "0.3.4"
 serde_json = "1.0.74"

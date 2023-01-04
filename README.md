@@ -5,8 +5,8 @@
 
 **Complete StarkNet library in Rust**
 
-![starknet-version-v0.10.0](https://img.shields.io/badge/StarkNet_Version-v0.10.0-2ea44f?logo=ethereum)
-[![jsonrpc-spec-v0.1.0](https://img.shields.io/badge/JSON--RPC-v0.1.0-2ea44f?logo=ethereum)](https://github.com/starkware-libs/starknet-specs/tree/v0.1.0)
+![starknet-version-v0.10.3](https://img.shields.io/badge/StarkNet_Version-v0.10.3-2ea44f?logo=ethereum)
+[![jsonrpc-spec-v0.2.1](https://img.shields.io/badge/JSON--RPC-v0.2.1-2ea44f?logo=ethereum)](https://github.com/starkware-libs/starknet-specs/tree/v0.2.1)
 [![linting-badge](https://github.com/xJonathanLEI/starknet-rs/actions/workflows/lint.yaml/badge.svg?branch=master)](https://github.com/xJonathanLEI/starknet-rs/actions/workflows/lint.yaml)
 [![crates-badge](https://img.shields.io/crates/v/starknet.svg)](https://crates.io/crates/starknet)
 
@@ -50,7 +50,21 @@ This workspace contains the following crates:
 - `starknet-signers`: StarkNet signer implementations
 - `starknet-accounts`: Types for handling StarkNet account abstraction
 - `starknet-ff`: StarkNet field element type
+- `starknet-curve`: StarkNet curve operations
 - `starknet-macros`: Useful macros for using the `starknet` crates
+
+## WebAssembly
+
+`starknet-rs` can be used as a WebAssembly module. Check out [this example](./examples/starknet-wasm/).
+
+## Performance
+
+Benchmark results for native and WebAssembly targets are available for these crates:
+
+- [starknet-core](./starknet-core/)
+- [starknet-crypto](./starknet-crypto/)
+
+For instructions on running the benchmark yourself, check [here](./BENCHMARK.md).
 
 ## Example
 

@@ -1,4 +1,3 @@
-use std::fmt::Formatter;
 use crate::provider::Provider;
 
 use async_trait::async_trait;
@@ -23,15 +22,6 @@ pub struct SequencerGatewayProvider {
     client: Client,
     gateway_url: Url,
     feeder_gateway_url: Url,
-}
-
-impl std::fmt::Debug for SequencerGatewayProvider {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SequencerGatewayProvider")
-                  .field("gateway_url", &self.gateway_url)
-                  .field("feeder_gateway_url", &self.feeder_gateway_url)
-                  .finish()
-    }
 }
 
 #[derive(Debug, Error)]
@@ -69,10 +59,17 @@ impl SequencerGatewayProvider {
         )
     }
 
+    pub fn starknet_alpha_goerli_2() -> Self {
+        Self::new(
+            Url::parse("https://alpha4-2.starknet.io/gateway").unwrap(),
+            Url::parse("https://alpha4-2.starknet.io/feeder_gateway").unwrap(),
+        )
+    }
+
     pub fn starknet_nile_localhost() -> Self {
         Self::new(
-            Url::parse("http://127.0.0.1:5000/gateway").unwrap(),
-            Url::parse("http://127.0.0.1:5000/feeder_gateway").unwrap(),
+            Url::parse("http://127.0.0.1:5050/gateway").unwrap(),
+            Url::parse("http://127.0.0.1:5050/feeder_gateway").unwrap(),
         )
     }
 }
@@ -160,12 +157,8 @@ impl Provider for SequencerGatewayProvider {
     async fn add_transaction(
         &self,
         tx: TransactionRequest,
-        token: Option<String>,
     ) -> Result<AddTransactionResult, Self::Error> {
-        let mut request_url = self.extend_gateway_url("add_transaction");
-        if let Some(token) = token {
-            request_url.query_pairs_mut().append_pair("token", &token);
-        }
+        let request_url = self.extend_gateway_url("add_transaction");
 
         match self.send_post_request(request_url, &tx).await? {
             GatewayResponse::Data(data) => Ok(data),
@@ -214,6 +207,22 @@ impl Provider for SequencerGatewayProvider {
         append_block_id(&mut request_url, block_identifier);
 
         match self.send_post_request(request_url, &tx).await? {
+            GatewayResponse::Data(data) => Ok(data),
+            GatewayResponse::StarknetError(starknet_err) => {
+                Err(ProviderError::StarknetError(starknet_err))
+            }
+        }
+    }
+
+    async fn estimate_fee_bulk(
+        &self,
+        txs: &[AccountTransaction],
+        block_identifier: BlockId,
+    ) -> Result<Vec<FeeEstimate>, Self::Error> {
+        let mut request_url = self.extend_feeder_gateway_url("estimate_fee_bulk");
+        append_block_id(&mut request_url, block_identifier);
+
+        match self.send_post_request(request_url, &txs).await? {
             GatewayResponse::Data(data) => Ok(data),
             GatewayResponse::StarknetError(starknet_err) => {
                 Err(ProviderError::StarknetError(starknet_err))
@@ -680,6 +689,15 @@ mod tests {
     fn test_estimate_fee_deser() {
         serde_json::from_str::<GatewayResponse<FeeEstimate>>(include_str!(
             "../test-data/estimate_fee/1_success.txt"
+        ))
+        .unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_estimate_fee_bulk_deser() {
+        serde_json::from_str::<GatewayResponse<Vec<FeeEstimate>>>(include_str!(
+            "../test-data/estimate_fee_bulk/1_success.txt"
         ))
         .unwrap();
     }

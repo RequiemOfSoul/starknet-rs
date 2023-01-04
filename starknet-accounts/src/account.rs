@@ -6,13 +6,13 @@ use starknet_core::types::{
 };
 use std::{error::Error, sync::Arc};
 
-#[derive(Debug, Clone)]
-pub struct AttachedTxInfoCall {
+#[derive(Debug)]
+pub struct AttachedAccountCall<'a, A> {
     pub calls: Vec<Call>,
     pub nonce: Option<FieldElement>,
     pub max_fee: Option<FieldElement>,
     pub fee_estimate_multiplier: f32,
-    pub transaction_hash: FieldElement,
+    pub(crate) account: &'a A,
 }
 
 #[derive(Debug)]
@@ -63,7 +63,7 @@ pub trait AccountDeclaration {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Account: Sized {
     type GetNonceError: Error + Send;
-    type SignTransactionError: Error + Send;
+    type EstimateFeeError: Error + Send;
     type SendTransactionError: Error + Send;
 
     fn address(&self) -> FieldElement;
@@ -73,7 +73,7 @@ pub trait Account: Sized {
         block_identifier: BlockId,
     ) -> Result<FieldElement, Self::GetNonceError>;
 
-    async fn execute(&self, calls: &[Call]) -> Result<AttachedTxInfoCall, Self::SignTransactionError>;
+    fn execute(&self, calls: &[Call]) -> AttachedAccountCall<Self>;
 
     fn declare(
         &self,
@@ -81,17 +81,17 @@ pub trait Account: Sized {
         class_hash: FieldElement,
     ) -> AttachedAccountDeclaration<Self>;
 
-    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::SignTransactionError>
+    async fn estimate_fee<C>(&self, call: &C) -> Result<FeeEstimate, Self::EstimateFeeError>
     where
         C: AccountCall + Sync;
 
     async fn estimate_declare_fee<D>(
         &self,
         declaration: &D,
-    ) -> Result<FeeEstimate, Self::SignTransactionError>
+    ) -> Result<FeeEstimate, Self::EstimateFeeError>
     where
         D: AccountDeclaration + Sync;
-    
+
     async fn send_transaction<C>(
         &self,
         call: &C,
@@ -107,9 +107,20 @@ pub trait Account: Sized {
         D: AccountDeclaration + Sync;
 }
 
+impl<'a, A> AttachedAccountCall<'a, A>
+where
+    A: Account + Sync,
+{
+    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::EstimateFeeError> {
+        self.account.estimate_fee(self).await
+    }
 
+    pub async fn send(&self) -> Result<AddTransactionResult, A::SendTransactionError> {
+        self.account.send_transaction(self).await
+    }
+}
 
-impl AccountCall for AttachedTxInfoCall {
+impl<'a, A> AccountCall for AttachedAccountCall<'a, A> {
     fn get_calls(&self) -> &[Call] {
         &self.calls
     }
@@ -124,7 +135,7 @@ impl AccountCall for AttachedTxInfoCall {
             nonce: Some(nonce),
             max_fee: self.max_fee,
             fee_estimate_multiplier: self.fee_estimate_multiplier,
-            transaction_hash: self.transaction_hash
+            account: self.account,
         }
     }
 
@@ -138,10 +149,10 @@ impl AccountCall for AttachedTxInfoCall {
             nonce: self.nonce,
             max_fee: Some(max_fee),
             fee_estimate_multiplier: self.fee_estimate_multiplier,
-            transaction_hash: self.transaction_hash
+            account: self.account,
         }
     }
-    
+
     fn get_fee_estimate_multiplier(&self) -> f32 {
         self.fee_estimate_multiplier
     }
@@ -152,7 +163,7 @@ impl AccountCall for AttachedTxInfoCall {
             nonce: self.nonce,
             max_fee: self.max_fee,
             fee_estimate_multiplier,
-            transaction_hash: self.transaction_hash
+            account: self.account,
         }
     }
 }
@@ -161,7 +172,7 @@ impl<'a, A> AttachedAccountDeclaration<'a, A>
 where
     A: Account + Sync,
 {
-    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::SignTransactionError> {
+    pub async fn estimate_fee(&self) -> Result<FeeEstimate, A::EstimateFeeError> {
         self.account.estimate_declare_fee(self).await
     }
 
