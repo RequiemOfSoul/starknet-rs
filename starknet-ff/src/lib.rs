@@ -482,33 +482,6 @@ impl From<u32> for FieldElement {
     }
 }
 
-impl From<u8> for FieldElement {
-    fn from(value: u8) -> Self {
-        Self {
-            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
-                .unwrap(),
-        }
-    }
-}
-
-impl From<u16> for FieldElement {
-    fn from(value: u16) -> Self {
-        Self {
-            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
-                .unwrap(),
-        }
-    }
-}
-
-impl From<u32> for FieldElement {
-    fn from(value: u32) -> Self {
-        Self {
-            inner: Fp256::<FrParameters>::from_repr(BigInteger256::new([value as u64, 0, 0, 0]))
-                .unwrap(),
-        }
-    }
-}
-
 impl From<u64> for FieldElement {
     fn from(value: u64) -> Self {
         Self {

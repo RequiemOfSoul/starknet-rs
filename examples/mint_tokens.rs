@@ -28,7 +28,7 @@ async fn main() {
                 FieldElement::from_dec_str("1000000000000000000000").unwrap(),
                 FieldElement::ZERO,
             ],
-        }]).await.unwrap();
+        }]);
     let result = account.send_transaction(&call)
         .await
         .unwrap();
