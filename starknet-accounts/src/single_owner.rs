@@ -17,7 +17,7 @@ use starknet_signers::Signer;
 use std::sync::Arc;
 
 /// Cairo string for "invoke"
-const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
+pub const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
     18443034532770911073,
     18446744073709551615,
     18446744073709551615,
@@ -25,7 +25,7 @@ const PREFIX_INVOKE: FieldElement = FieldElement::from_mont([
 ]);
 
 /// Cairo string for "declare"
-const PREFIX_DECLARE: FieldElement = FieldElement::from_mont([
+pub const PREFIX_DECLARE: FieldElement = FieldElement::from_mont([
     17542456862011667323,
     18446744073709551615,
     18446744073709551615,
@@ -83,12 +83,7 @@ where
         self.chain_id
     }
 
-    async fn generate_invoke_request(
-        &self,
-        calls: &[Call],
-        nonce: FieldElement,
-        max_fee: FieldElement,
-    ) -> Result<InvokeFunctionTransactionRequest, S::SignError> {
+    pub fn encode_call_data(&self, calls: &[Call]) -> Vec<FieldElement> {
         let mut concated_calldata: Vec<FieldElement> = vec![];
         let mut execute_calldata: Vec<FieldElement> = vec![calls.len().into()];
         for call in calls.iter() {
@@ -105,6 +100,16 @@ where
         for item in concated_calldata.into_iter() {
             execute_calldata.push(item); // calldata
         }
+        execute_calldata
+    }
+
+    async fn generate_invoke_request(
+        &self,
+        calls: &[Call],
+        nonce: FieldElement,
+        max_fee: FieldElement,
+    ) -> Result<InvokeFunctionTransactionRequest, S::SignError> {
+        let execute_calldata = self.encode_call_data(calls);
 
         let transaction_hash = compute_hash_on_elements(&[
             PREFIX_INVOKE,
